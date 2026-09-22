@@ -1,0 +1,2040 @@
+[
+  {
+    "id": "EC-01",
+    "project": "EC",
+    "number": 1,
+    "title": "Připojení, CLI a první diagnostika",
+    "topics": [
+      "client",
+      "cli",
+      "types"
+    ],
+    "goal": "Založ backend katalogu s klientem node-redis v5 a odděl zdroj produktů od Redis cache.",
+    "steps": [
+      "Použij setup/ a založ Node.js projekt; TypeScript a Fastify jsou volitelné. Verzi balíčku redis v řadě 5 zamkni lockfilem.",
+      "Zaveď REDIS_URL, error handler před connect() a jednu sdílenou klientskou instanci pro běžné příkazy.",
+      "V CLI proveď PING, INFO server, SET/GET, TYPE a EXISTS nad ec:lab:hello. Zapiš verzi serveru i klienta."
+    ],
+    "checks": [
+      "CLI i aplikace vracejí PONG.",
+      "Neexistující GET rozpoznáš jako chybějící hodnotu, nikoliv prázdný string.",
+      "Při chybném portu dostaneš zachycenou chybu a omezenou dobu čekání."
+    ],
+    "trap": "isOpen popisuje socket; otevřený socket ještě neznamená připraveného klienta.",
+    "question": "Proč nemá každý HTTP request vytvářet nové spojení?",
+    "hint": "Začni createClient({url: process.env.REDIS_URL}); přidej .on(\"error\", handler) před await connect(). Sleduj isReady zvlášť od isOpen.",
+    "commands": "PING, INFO, GET, SET, TYPE, EXISTS; createClient, connect, isReady, isOpen",
+    "mins": 30,
+    "level": "P",
+    "deps": [],
+    "path": "01_Ecommerce/ukoly/EC-01.md"
+  },
+  {
+    "id": "EC-02",
+    "project": "EC",
+    "number": 2,
+    "title": "Model produktů a smlouva pro klíče",
+    "topics": [
+      "model",
+      "types",
+      "keys"
+    ],
+    "goal": "Navrhni malé schéma, ze kterého bude zřejmé, co je původní údaj, kopie a index.",
+    "steps": [
+      "Načti data/products.json do samostatného repository; pro lab stačí Map s počítadlem čtení a možností restartu ze seedu.",
+      "Navrhni ec:cache:product:<id>, ec:product:<id>, ec:category:<slug>, ec:rank:price a ec:cache:query:<fingerprint>.",
+      "Ke každému klíči uveď typ, vlastníka, TTL, obnovitelnost a maximální očekávanou velikost. Rozliš celé klíče a hash fieldy."
+    ],
+    "checks": [
+      "Repository vrací 8 produktů a p999 jako nenalezený.",
+      "V tabulce je alespoň String, Hash, Set, Sorted Set a List.",
+      "Žádná část aplikace nepovažuje cache za jedinou kopii katalogu."
+    ],
+    "trap": "Prefix odděluje jména, nevytváří tabulku ani automatické vazby mezi klíči.",
+    "question": "Kdy je vhodnější Hash než JSON uložený pomocí SET?",
+    "hint": "Detaily produktu čtené celé se hodí jako String cache. Pro nezávislé aktualizace plochých polí si připrav Hash. JSON typ přidáš samostatně.",
+    "commands": "TYPE, OBJECT ENCODING; datové modelování",
+    "mins": 40,
+    "level": "P",
+    "deps": [
+      "EC-01"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-02.md"
+  },
+  {
+    "id": "EC-03",
+    "project": "EC",
+    "number": 3,
+    "title": "Stringy, hromadné čtení a čítače",
+    "topics": [
+      "strings",
+      "types"
+    ],
+    "goal": "Zpracuj drobné hodnoty a návštěvnost bez read–modify–write závodu.",
+    "steps": [
+      "Ulož dva krátké popisy pomocí MSET a čti je přes MGET včetně chybějícího třetího klíče.",
+      "Počítej zobrazení produktu přes INCR/INCRBY; spusť 100 souběžných inkrementů z nulového stavu.",
+      "Vyzkoušej SET NX, SET XX a zápis prázdného stringu. Zapiš návratové hodnoty v CLI a JS."
+    ],
+    "checks": [
+      "MGET zachová pořadí včetně chybějící položky.",
+      "Po 100 úspěšných inkrementech je hodnota 100.",
+      "NX přepíše pouze neexistující a XX pouze existující klíč."
+    ],
+    "trap": "GET vrací text; konkatenace \"10\" + 1 v JavaScriptu nedává číselný součet.",
+    "question": "Je MSET atomický a nastavuje automaticky TTL jednotlivých klíčů?",
+    "hint": "Odděl atomické INCR od neatomického GET + SET. MSET nezavádí expiraci; při přepsání existujícího String klíče se původní TTL nezachová.",
+    "commands": "SET NX/XX, GET, MSET, MGET, INCR, INCRBY, DECRBY",
+    "mins": 35,
+    "level": "P",
+    "deps": [
+      "EC-02"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-03.md"
+  },
+  {
+    "id": "EC-04",
+    "project": "EC",
+    "number": 4,
+    "title": "Produkt jako Hash",
+    "topics": [
+      "hashes",
+      "types"
+    ],
+    "goal": "Umožni číst a měnit jednotlivá produktová pole.",
+    "steps": [
+      "Ulož id, name, priceCents, stock a category pro p101 do ec:product:p101.",
+      "Přidej změnu ceny přes HSET a úbytek zásoby přes HINCRBY; neřeš ještě rezervaci při souběhu.",
+      "Proveď HGET, HMGET, HGETALL, HEXISTS, HDEL a HSETNX pro createdAt. Ověř chybějící hash."
+    ],
+    "checks": [
+      "Změna ceny nezmění název ani kategorii.",
+      "Dva zápisy HSETNX zachovají první createdAt.",
+      "Aplikace převádí číselná pole a nepovažuje prázdný výsledek HGETALL za existující produkt."
+    ],
+    "trap": "HSET vrací počet nově přidaných fieldů, nikoliv počet všech upravených fieldů.",
+    "question": "Znamená HSETNX, že byl celý Hash vytvořen pouze jednou?",
+    "hint": "HSETNX hlídá jeden field. HGETALL nad chybějícím hashem mapuje node-redis typicky na prázdný objekt; ten je v JS truthy.",
+    "commands": "HSET, HGET, HMGET, HGETALL, HINCRBY, HSETNX, HEXISTS, HDEL",
+    "mins": 40,
+    "level": "P",
+    "deps": [
+      "EC-03"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-04.md"
+  },
+  {
+    "id": "EC-05",
+    "project": "EC",
+    "number": 5,
+    "title": "Vnořená data pomocí Redis JSON",
+    "topics": [
+      "json",
+      "model"
+    ],
+    "goal": "Porovnej String s JSON dokumentem a procvič změny podle cesty.",
+    "steps": [
+      "Vytvoř ec:json:product:p101 z fixtures včetně attributes a tags.",
+      "Změň pouze $.attributes.color, navyš $.stock a přidej tag bez načítání celého dokumentu.",
+      "Vyzkoušej JSON.SET NX/XX pro existující a neexistující cestu; porovnej GET a JSON.GET na různých typech klíčů."
+    ],
+    "checks": [
+      "Změna barvy zachová ostatní attributes.",
+      "Dva souběžné JSON.NUMINCRBY neztratí žádný přírůstek.",
+      "Umíš vysvětlit tvar výsledku s JSONPath $ i rozdíl od JSON.parse(GET(...))."
+    ],
+    "trap": "JSON uložený příkazem SET je stále Redis String. Příkazy JSON.* pro něj nejsou totéž co GET.",
+    "question": "Proč je zápis celého dokumentu po načtení nebezpečný při souběhu?",
+    "hint": "Nejprve COMMAND INFO JSON.SET. Pokud příkaz chybí, použij server s JSON podporou. Pro nový dokument vytvoř root; libovolná chybějící hierarchie se sama nevytvoří.",
+    "commands": "JSON.SET, JSON.GET, JSON.TYPE, JSON.NUMINCRBY, JSON.ARRAPPEND, JSON.DEL",
+    "mins": 45,
+    "level": "P",
+    "deps": [
+      "EC-04"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-05.md"
+  },
+  {
+    "id": "EC-06",
+    "project": "EC",
+    "number": 6,
+    "title": "Cache-aside detailu produktu",
+    "topics": [
+      "cache",
+      "strings"
+    ],
+    "goal": "Zrychli čtení produktu a zachovej funkčnost při prázdné cache.",
+    "steps": [
+      "Implementuj getProduct(id): cache hit vrátí kopii; miss načte repository a uloží JSON String s TTL 60 s.",
+      "Přidej měřitelné počítadlo čtení repository a údaj o zdroji výsledku do diagnostiky.",
+      "Otestuj první čtení, druhé čtení a čtení po expiraci; v testu smíš zkrátit TTL na 2 s."
+    ],
+    "checks": [
+      "První request zvýší počet DB čtení, druhý nikoliv.",
+      "Po expiraci vrátíš správná data a cache znovu vznikne.",
+      "Nenalezený produkt neukládáš jako běžný platný produkt."
+    ],
+    "trap": "Cache-aside sama neřeší zastaralost dat po zápisu do primárního zdroje.",
+    "question": "Co se stane po vymazání všech cache klíčů, pokud repository funguje?",
+    "hint": "Zápis hodnoty a expirace patří do jednoho SET s EX; dva oddělené příkazy mohou při pádu zanechat klíč bez TTL.",
+    "commands": "GET, SET EX, TTL",
+    "mins": 50,
+    "level": "P",
+    "deps": [
+      "EC-05"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-06.md"
+  },
+  {
+    "id": "EC-07",
+    "project": "EC",
+    "number": 7,
+    "title": "Laboratoř TTL a expirací",
+    "topics": [
+      "ttl",
+      "keys"
+    ],
+    "goal": "Získej jistotu v relativních a absolutních časech expirace.",
+    "steps": [
+      "Na izolovaných ec:lab:ttl:* procvič EX, PX, EXAT, PXAT, EXPIRE a PEXPIRE. Připrav tabulku jednotek.",
+      "Porovnej obyčejný SET s SET KEEPTTL, GETEX, GETDEL a PERSIST.",
+      "Vyzkoušej EXPIRE NX, XX, GT a LT; změř TTL/PTTL a EXPIRETIME/PEXPIRETIME před i po změně."
+    ],
+    "checks": [
+      "Rozlišíš TTL -1, -2 a kladnou hodnotu.",
+      "SET bez KEEPTTL odstraní dosavadní expiraci, změna hashe přes HSET ji běžně zachová.",
+      "Dokážeš nastavit konec akce na konkrétní Unix timestamp a ověřit ho s tolerancí času."
+    ],
+    "trap": "EXAT používá sekundy od epochy; JavaScript Date.now() používá milisekundy.",
+    "question": "Jak EXPIRE GT zachází s klíčem, který nemá expiraci?",
+    "hint": "Klíč bez TTL se při GT/LT posuzuje jako s nekonečným TTL. U časových testů používej interval a toleranci, ne přesnou rovnost po síti.",
+    "commands": "TTL, PTTL, EXPIRE, PEXPIRE, EXPIREAT, PEXPIREAT, EXPIRETIME, PEXPIRETIME, PERSIST, GETEX, GETDEL",
+    "mins": 50,
+    "level": "P",
+    "deps": [
+      "EC-06"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-07.md"
+  },
+  {
+    "id": "EC-08",
+    "project": "EC",
+    "number": 8,
+    "title": "Zápis a invalidace cache",
+    "topics": [
+      "cache",
+      "consistency"
+    ],
+    "goal": "Po úpravě produktu obnov správné čtení detailu i dotazů.",
+    "steps": [
+      "Implementuj updateProduct: nejprve změna repository, potom invalidace detailu.",
+      "Zaveď verzi katalogu pro query cache: verze je součástí cache klíče a při změně dat ji zvyš. Staré výsledky mají krátké TTL.",
+      "Nasimuluj neúspěšný zápis do repository a samostatně selhání invalidace po úspěšném zápisu."
+    ],
+    "checks": [
+      "Po úspěšné změně ceny další sekvenční request vrátí novou cenu.",
+      "Neúspěšná změna zdroje nepublikuje novou hodnotu do cache.",
+      "Máš popsané okno zastaralosti při selhání invalidace a způsob jeho omezení."
+    ],
+    "trap": "Delete-after-write nebrání každému závodu: rozpracovaný čtenář může později zapsat starou hodnotu.",
+    "question": "Proč Redis MULTI nezajistí společnou transakci s PostgreSQL?",
+    "hint": "Versioned query cache eliminuje potřebu hledat všechny varianty dotazu při každé změně. Není to automatická garance konzistence mezi dvěma databázemi.",
+    "commands": "DEL, INCR, GET, SET EX",
+    "mins": 50,
+    "level": "P",
+    "deps": [
+      "EC-07"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-08.md"
+  },
+  {
+    "id": "EC-09",
+    "project": "EC",
+    "number": 9,
+    "title": "Negative cache a ochrana zdroje",
+    "topics": [
+      "cache",
+      "ttl",
+      "errors"
+    ],
+    "goal": "Odliš nenalezený produkt od nedostupného zdroje.",
+    "steps": [
+      "Zaveď označenou hodnotu pro nenalezený produkt s TTL 10 s, odlišnou od platného produktu.",
+      "Desetkrát načti p999 a změř počet dotazů do repository.",
+      "Potom p999 vytvoř a invaliduj negative cache. Samostatně nasimuluj timeout repository."
+    ],
+    "checks": [
+      "Opakované čtení neexistujícího ID během TTL nevytěžuje zdroj.",
+      "Po vytvoření a invalidaci se produkt ihned objeví.",
+      "Timeout zdroje se nezamění za 404 a neuloží jako nenalezeno."
+    ],
+    "trap": "JSON null může být platná hodnota domény; značka negative cache musí být jednoznačná.",
+    "question": "Proč se negative cache obvykle drží kratší dobu než stabilní produktový detail?",
+    "hint": "Použij envelope, například status: found/not_found. Chyby infrastruktury mají samostatnou větev.",
+    "commands": "GET, SET EX, DEL",
+    "mins": 35,
+    "level": "P",
+    "deps": [
+      "EC-08"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-09.md"
+  },
+  {
+    "id": "EC-10",
+    "project": "EC",
+    "number": 10,
+    "title": "Cache výsledků vyhledávání",
+    "topics": [
+      "cache",
+      "queries",
+      "keys"
+    ],
+    "goal": "Ukládej výsledky filtrování a stránkování bez kolizí parametrů.",
+    "steps": [
+      "Implementuj listProducts(category, minPrice, maxPrice, sort, page, pageSize) nad repository.",
+      "Normalizuj parametry a vytvoř stabilní fingerprint včetně verze katalogu a všech filtrů.",
+      "Cache výsledku nastav na 30 s; ulož i total. Porovnej totožný dotaz s jiným pořadím parametrů."
+    ],
+    "checks": [
+      "Stejný význam dotazu vytváří stejný klíč.",
+      "Jiné stránkování nebo směr řazení nevrátí cizí výsledek.",
+      "Výchozí seed při category=audio vrátí p103 a p108; minPrice=100000 ponechá pouze p103."
+    ],
+    "trap": "Cache výsledku dotazu neznamená, že máš Redis Search index.",
+    "question": "Které části dotazu musí být v cache klíči, aby se výsledky nemíchaly?",
+    "hint": "Kanonický objekt má pevné pořadí polí, jednotné typy a explicitní defaulty. Nezapomeň tenant nebo oprávnění, pokud někdy ovlivní odpověď.",
+    "commands": "GET, SET EX; kanonizace parametrů",
+    "mins": 50,
+    "level": "P",
+    "deps": [
+      "EC-09"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-10.md"
+  },
+  {
+    "id": "EC-11",
+    "project": "EC",
+    "number": 11,
+    "title": "Kategorie, tagy a množinové operace",
+    "topics": [
+      "sets",
+      "model"
+    ],
+    "goal": "Vytvoř indexy kategorií a tagů z produktových ID.",
+    "steps": [
+      "Naplň ec:category:* a ec:tag:* přes SADD; zaveď přidání a odebrání ID.",
+      "Napiš filtr kategorie electronics a tag sale pomocí průniku; pak union dvou tagů a rozdíl proti vyprodaným.",
+      "Ulož výsledek přes SINTERSTORE, změň vstupní množinu a porovnej snapshot s novým dotazem."
+    ],
+    "checks": [
+      "Opakované SADD nevytváří duplicity.",
+      "Kategorie electronics ∩ tag sale vrací p101 a p107.",
+      "Uložený průnik se po změně vstupů sám nepřepočítá."
+    ],
+    "trap": "Set nemá garantované pořadí; test musí porovnávat množiny.",
+    "question": "Co se stane s kategoriovým indexem, když smažeš Hash produktu?",
+    "hint": "Redis neudržuje cizí klíče. Změna produktu i jeho odvozených indexů je odpovědnost aplikace.",
+    "commands": "SADD, SREM, SISMEMBER, SMISMEMBER, SCARD, SMEMBERS, SINTER, SUNION, SDIFF, SINTERSTORE",
+    "mins": 45,
+    "level": "P",
+    "deps": [
+      "EC-10"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-11.md"
+  },
+  {
+    "id": "EC-12",
+    "project": "EC",
+    "number": 12,
+    "title": "Cena a popularita v Sorted Sets",
+    "topics": [
+      "sortedsets",
+      "model"
+    ],
+    "goal": "Odděl identitu produktu od hodnoty, podle které se řadí.",
+    "steps": [
+      "Vlož produkty do ec:rank:price: member=id, score=priceCents. Přidej ec:rank:views s nulami.",
+      "Implementuj nejlevnější tři, nejdražší tři, interval ceny a pořadí konkrétního produktu.",
+      "Zvedni views pomocí ZINCRBY a změň cenu p101 přes ZADD. Vyzkoušej NX, XX a CH."
+    ],
+    "checks": [
+      "Nejlevnější trojice je p104, p108, p105.",
+      "Změna score p101 nevytvoří druhého člena.",
+      "Rozlišíš ZRANK od ZSCORE a indexový rozsah od BYSCORE."
+    ],
+    "trap": "Stejný member může mít v jednom Sorted Set jen jedno score. Při shodě score rozhoduje lexikografické pořadí memberů.",
+    "question": "Proč nelze používat ID produktu jako member pro více historických cen téhož produktu?",
+    "hint": "Částky ukládej jako celá čísla v haléřích. U BYSCORE a REV si ověř pořadí mezí a inkluzivní/exkluzivní hranici.",
+    "commands": "ZADD, ZINCRBY, ZRANGE BYSCORE/REV/WITHSCORES, ZRANK, ZSCORE, ZCOUNT, ZCARD, ZREM",
+    "mins": 45,
+    "level": "P",
+    "deps": [
+      "EC-11"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-12.md"
+  },
+  {
+    "id": "EC-13",
+    "project": "EC",
+    "number": 13,
+    "title": "Poslední prohlížené produkty",
+    "topics": [
+      "lists",
+      "types"
+    ],
+    "goal": "Procvič List na omezené historii jednoho zákazníka.",
+    "steps": [
+      "Novou návštěvu vlož na začátek ec:user:u1:recent a omez historii na 5 položek.",
+      "Rozhodni, zda jsou duplicity povolené. Pro variantu bez duplicit odstraň předchozí výskyt před vložením.",
+      "Ověř LRANGE 0 2, LRANGE 0 -1, LINDEX, LLEN a odebrání prvku."
+    ],
+    "checks": [
+      "Po návštěvách p101 až p108 zůstane posledních 5 v očekávaném pořadí.",
+      "LRANGE 0 2 vrátí nejvýše 3 položky.",
+      "Umíš předvést závod samostatného LREM/LPUSH/LTRIM a popsat potřebu atomického bloku."
+    ],
+    "trap": "Koncový index LRANGE je včetně; -1 znamená poslední prvek.",
+    "question": "Čím se List liší od Set při ukládání posledních návštěv?",
+    "hint": "Pro jednoduchou historii jsou LPUSH + LTRIM vhodné; složenou variantu sjednoť později v transakci nebo skriptu.",
+    "commands": "LPUSH, RPUSH, LRANGE, LINDEX, LLEN, LREM, LTRIM, LPOP",
+    "mins": 35,
+    "level": "P",
+    "deps": [
+      "EC-12"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-13.md"
+  },
+  {
+    "id": "EC-14",
+    "project": "EC",
+    "number": 14,
+    "title": "Hromadné zápisy přes pipeline",
+    "topics": [
+      "pipeline",
+      "performance",
+      "client"
+    ],
+    "goal": "Porovnej náklady sekvenčních round tripů s dávkou nezávislých zápisů.",
+    "steps": [
+      "Z fixtures vytvoř 1000 produktových kopií s unikátními ID.",
+      "Změř zápis sekvenčním await, Promise.all v dávkách a explicitní multi().execAsPipeline().",
+      "Do jedné dávky přidej příkaz se špatným typem a zjisti stav ostatních zápisů i tvar chyby klienta."
+    ],
+    "checks": [
+      "Každá úspěšná varianta vytvoří 1000 očekávaných klíčů.",
+      "Report uvádí objem dat, velikost dávky a měřené časy.",
+      "Nespoléháš na atomické provedení celé pipeline."
+    ],
+    "trap": "Použití builderu multi() s execAsPipeline() z něj nedělá transakci.",
+    "question": "Proč pipeline nepomůže, když druhý příkaz musí být sestaven z výsledku prvního?",
+    "hint": "Použij dávky například po 100. Výkon lokálně nehodnoť pevnou hranicí; důležitá je interpretace round tripů a absence izolace.",
+    "commands": "Promise.all, multi().execAsPipeline()",
+    "mins": 50,
+    "level": "P",
+    "deps": [
+      "EC-13"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-14.md"
+  },
+  {
+    "id": "EC-15",
+    "project": "EC",
+    "number": 15,
+    "title": "Atomická skupina změn přes MULTI",
+    "topics": [
+      "transactions",
+      "atomicity"
+    ],
+    "goal": "Udrž Hash produktu a cenový index v jednom Redis bloku.",
+    "steps": [
+      "Implementuj změnu ceny v Hash i Sorted Set pomocí MULTI/EXEC.",
+      "Totéž proveď ručně v CLI a zaznamenej QUEUED a pole výsledků EXEC.",
+      "Připrav neodeslanou změnu a zruš ji pomocí DISCARD. Potom transakcí sjednoť historii z EC-13."
+    ],
+    "checks": [
+      "Hash i index po úspěchu obsahují stejnou cenu.",
+      "DISCARD nic z fronty nezapíše.",
+      "Znáš rozdíl návratů při řazení příkazů a při jejich skutečném provedení."
+    ],
+    "trap": "MULTI nemění databázi ihned; návrat QUEUED není výsledek daného příkazu.",
+    "question": "Brání samotné MULTI zastaralému čtení, které jsi provedl ještě před MULTI?",
+    "hint": "Transakce izoluje běh zařazených příkazů od dalších klientů. Pro podmínku závislou na dřívějším čtení budeš potřebovat WATCH nebo Lua.",
+    "commands": "MULTI, EXEC, DISCARD; multi().exec()",
+    "mins": 40,
+    "level": "P",
+    "deps": [
+      "EC-14"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-15.md"
+  },
+  {
+    "id": "EC-16",
+    "project": "EC",
+    "number": 16,
+    "title": "Chyby transakcí bez rollbacku",
+    "topics": [
+      "transactions",
+      "errors"
+    ],
+    "goal": "Rozliš chybu při zařazení příkazu a při jeho provádění.",
+    "steps": [
+      "Připrav String n=5, String label=x a chybějící done v ec:lab:tx:*. V MULTI zařaď INCR n, LPUSH label x, SET done yes.",
+      "Zopakuj experiment s chybným počtem argumentů při zařazování příkazu.",
+      "Zaznamenej stav klíčů po obou EXEC a porovnej CLI s výjimkou v JS."
+    ],
+    "checks": [
+      "Runtime WRONGTYPE ponechá n=6 a done=yes.",
+      "Chyba při zařazování na moderním Redis vede k odmítnutí transakce při EXEC.",
+      "Aplikace po výjimce netvrdí, že se nic nezměnilo."
+    ],
+    "trap": "Chyba Promise není důkaz serverového rollbacku.",
+    "question": "Proč je validace typů a argumentů před transakcí důležitá?",
+    "hint": "V CLI sleduj jednotlivé výsledky pole EXEC. U klienta si ulož error name a dostupné výsledky; přesný tvar může záviset na minor verzi.",
+    "commands": "MULTI, EXEC, INCR, LPUSH, SET; WRONGTYPE, EXECABORT",
+    "mins": 40,
+    "level": "P",
+    "deps": [
+      "EC-15"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-16.md"
+  },
+  {
+    "id": "EC-17",
+    "project": "EC",
+    "number": 17,
+    "title": "WATCH a souběžná rezervace zásoby",
+    "topics": [
+      "watch",
+      "concurrency",
+      "client"
+    ],
+    "goal": "Zabraň prodeji více kusů, než je dostupných.",
+    "steps": [
+      "Připrav ec:stock:p101 jako String s hodnotou 1. Nejdřív reprodukuj chybu GET + SET dvěma klienty.",
+      "Napiš WATCH → GET → kontrola → MULTI/DECR/EXEC s omezeným retry.",
+      "Každé souběžné rezervaci zajisti vlastní spojení nebo výhradně zapůjčené spojení z poolu; při předčasném návratu zruš WATCH."
+    ],
+    "checks": [
+      "Z 20 souběžných rezervací uspěje právě jedna a zásoba je 0.",
+      "WATCH konflikt rozlišíš od chyby spojení.",
+      "Retry má limit a znovu načítá aktuální stav."
+    ],
+    "trap": "WATCH patří ke spojení. Souběžné requesty na stejném spojení si mohou narušit transakční stav.",
+    "question": "Jak se projeví změna sledovaného klíče jiným klientem před EXEC?",
+    "hint": "V node-redis v5 zpracuj WatchError. Čtení proveď po WATCH; uvolnění spojení patří do finally.",
+    "commands": "WATCH, UNWATCH, GET, MULTI, DECR, EXEC; WatchError",
+    "mins": 60,
+    "level": "P",
+    "deps": [
+      "EC-16"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-17.md"
+  },
+  {
+    "id": "EC-18",
+    "project": "EC",
+    "number": 18,
+    "title": "Lua: podmíněná změna na serveru",
+    "topics": [
+      "lua",
+      "concurrency",
+      "atomicity"
+    ],
+    "goal": "Přepiš rezervaci na krátký skript a procvič KEYS versus ARGV.",
+    "steps": [
+      "Předej skladový klíč přes KEYS[1] a požadované množství přes ARGV[1].",
+      "Před zápisem ověř existenci, typ/číselnou hodnotu a kladné celé množství; vrať odlišné výsledky pro úspěch a nedostatek.",
+      "Spusť souběžné rezervace a pak separátní experiment se zápisem následovaným úmyslnou runtime chybou."
+    ],
+    "checks": [
+      "Ze zásoby 10 nelze rezervovat více než 10 kusů.",
+      "ARGV převedeš pomocí tonumber a chybný vstup nic nezmění.",
+      "Demonstruješ, že chyba skriptu nevrátí dřívější zápisy zpět."
+    ],
+    "trap": "Atomické provedení znamená bez prokládání jinými příkazy, nikoliv automatický rollback.",
+    "question": "Proč mají všechny názvy klíčů přijít explicitně v KEYS a ne být schované v ARGV?",
+    "hint": "Lua má indexy od 1; 0 i prázdný string jsou truthy. Redis bulk nil je při RESP2 v Lua false. Kontroluj návratové typy místo JS intuice.",
+    "commands": "EVAL, redis.call, redis.pcall, KEYS, ARGV, tonumber",
+    "mins": 60,
+    "level": "P",
+    "deps": [
+      "EC-17"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-18.md"
+  },
+  {
+    "id": "EC-19",
+    "project": "EC",
+    "number": 19,
+    "title": "SCRIPT LOAD, SHA a obnova cache skriptů",
+    "topics": [
+      "lua",
+      "client",
+      "errors"
+    ],
+    "goal": "Spouštěj skript podle SHA a správně reaguj na chybějící skript.",
+    "steps": [
+      "Načti rezervaci přes SCRIPT LOAD a SHA ulož v aplikaci.",
+      "Spusť ji přes EVALSHA a ověř SCRIPT EXISTS.",
+      "Na izolovaném serveru proveď SCRIPT FLUSH a napiš fallback pouze pro NOSCRIPT: znovunačtení a opakování."
+    ],
+    "checks": [
+      "SHA odpovídá stejnému textu skriptu.",
+      "Po SCRIPT FLUSH se aplikace obnoví bez ručního zásahu.",
+      "Síťový timeout neslouží jako automatický důvod znovu provést neidempotentní rezervaci."
+    ],
+    "trap": "Cache skriptů není spolehlivé trvalé úložiště a nahrání na jeden node neznamená nahrání všude.",
+    "question": "Čím se NOSCRIPT liší od nejistého výsledku při ztracené odpovědi?",
+    "hint": "Při NOSCRIPT skript tímto voláním neběžel. Při přerušení spojení už běžet mohl. Tyto dvě retry větve neslučuj.",
+    "commands": "SCRIPT LOAD, SCRIPT EXISTS, SCRIPT FLUSH, EVALSHA",
+    "mins": 40,
+    "level": "P",
+    "deps": [
+      "EC-18"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-19.md"
+  },
+  {
+    "id": "EC-20",
+    "project": "EC",
+    "number": 20,
+    "title": "Audit cache pomocí SCAN",
+    "topics": [
+      "scan",
+      "cli",
+      "keys"
+    ],
+    "goal": "Zkontroluj tisíce klíčů bez produkčního KEYS *.",
+    "steps": [
+      "Vygeneruj 10000 malých ec:cache:audit:* klíčů; záměrně ponech 100 bez TTL.",
+      "Implementuj úplný cursor loop se SCAN MATCH a COUNT; pro nalezené klíče v dávkách čti TYPE a PTTL.",
+      "Zopakuj běh, zatímco jiný klient přidává a maže klíče. Přidej deduplikaci pro report."
+    ],
+    "checks": [
+      "Na statických datech najdeš přesně 100 klíčů bez TTL.",
+      "Prázdná stránka s nenulovým cursorem běh neukončí.",
+      "Vysvětlíš, proč audit během změn není konzistentní snapshot."
+    ],
+    "trap": "COUNT je doporučení velikosti práce, nikoliv garantovaný počet výsledků.",
+    "question": "Které klíče může SCAN vrátit vícekrát a kdy smíš skončit?",
+    "hint": "Skonči až při cursoru 0. U node-redis v5 scanIterator ověř, zda iterace vrací dávku; nezaměň dávku klíčů za jeden klíč.",
+    "commands": "SCAN MATCH/COUNT/TYPE, TYPE, PTTL, DBSIZE, scanIterator",
+    "mins": 50,
+    "level": "P",
+    "deps": [
+      "EC-19"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-20.md"
+  },
+  {
+    "id": "EC-21",
+    "project": "EC",
+    "number": 21,
+    "title": "Úklid, UNLINK a přejmenování",
+    "topics": [
+      "delete",
+      "keys",
+      "cli"
+    ],
+    "goal": "Odstraň vybrané cache klíče a pochop životní cyklus jména klíče.",
+    "steps": [
+      "Nad ec:cache:audit:* implementuj dry-run a následné mazání malých dávek přes UNLINK.",
+      "V izolovaném ec:lab:* porovnej DEL a UNLINK pro velký Hash.",
+      "Procvič RENAME, RENAMENX, EXISTS a TTL při přejmenování; porovnej TOUCH s prodloužením expirace."
+    ],
+    "checks": [
+      "Úklid nesmaže ec:product:* ani fd:* a zvládne prázdnou dávku.",
+      "Klíč po úspěšném UNLINK není dostupný, i když uvolnění paměti může doběhnout později.",
+      "RENAMENX nepřepíše existující cíl; TTL přejmenovaného zdroje se zachová."
+    ],
+    "trap": "UNLINK odstraní jméno hned; asynchronní je uvolňování větší hodnoty. TOUCH není refresh TTL.",
+    "question": "Proč je SCAN + UNLINK vhodnější pro rozsáhlý cílený úklid než KEYS + DEL?",
+    "hint": "Pro audit se měnící data deduplikuj. Mazání musí být idempotentní a omezené konkrétním prefixem.",
+    "commands": "UNLINK, DEL, RENAME, RENAMENX, TOUCH, EXISTS, TTL",
+    "mins": 40,
+    "level": "P",
+    "deps": [
+      "EC-20"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-21.md"
+  },
+  {
+    "id": "EC-22",
+    "project": "EC",
+    "number": 22,
+    "title": "Výpadek Redis a chování klienta",
+    "topics": [
+      "client",
+      "errors",
+      "cache"
+    ],
+    "goal": "Katalog má při výpadku cache stále číst z dostupného zdroje.",
+    "steps": [
+      "Zaveď connect/ready/error/reconnecting/end logy bez hesel.",
+      "Zastav pouze redis-ec; proveď několik čtení s omezenou dobou čekání a fallbackem do repository.",
+      "Server obnov a ověř reconnect, opětovné plnění cache a chování offline queue pro zvolenou konfiguraci."
+    ],
+    "checks": [
+      "Request během výpadku nevisí bez limitu.",
+      "Úspěšný fallback vrátí platný produkt.",
+      "Report rozliší connect timeout, příkazový timeout, reconnect a offline queue."
+    ],
+    "trap": "Opětovné odeslání INCR po timeoutu může zdvojnásobit účinek, pokud server první příkaz už provedl.",
+    "question": "Které operace můžeš bezpečně opakovat a které vyžadují idempotency key?",
+    "hint": "Timeout wrapper v JS sám o sobě neruší serverový příkaz. Uveď přesné nastavení klienta a co se stane s příkazem po vypršení deadline.",
+    "commands": "client events, socket reconnectStrategy, disableOfflineQueue; GET/SET",
+    "mins": 60,
+    "level": "P",
+    "deps": [
+      "EC-21"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-22.md"
+  },
+  {
+    "id": "EC-23",
+    "project": "EC",
+    "number": 23,
+    "title": "Graceful shutdown backendu",
+    "topics": [
+      "client",
+      "shutdown"
+    ],
+    "goal": "Ukonči aplikaci s dokončením rozpracovaných operací.",
+    "steps": [
+      "Zpracuj SIGTERM: zastav příjem requestů, počkej na rozpracované operace a poté uzavři Redis klienta.",
+      "Přidej maximální dobu ukončení a vynucené uzavření jako poslední větev.",
+      "Otestuj signál během cache miss i při odpojeném Redis."
+    ],
+    "checks": [
+      "Aplikace po signálu nepřijímá nové požadavky.",
+      "Dokončení běžného requestu předchází uzavření spojení.",
+      "Proces skončí i při nedostupném Redis a opakovaný signál nezpůsobí nekontrolovanou výjimku."
+    ],
+    "trap": "process.exit() zavolané před await může přerušit rozpracované zápisy.",
+    "question": "Jaký je rozdíl mezi client.close() a client.destroy() v node-redis v5?",
+    "hint": "Pro v5 rozliš close pro běžné uzavření a destroy pro okamžité ukončení. Starší příklady s quit/disconnect nepřenášej bez ověření API.",
+    "commands": "SIGTERM, client.close(), client.destroy()",
+    "mins": 40,
+    "level": "P",
+    "deps": [
+      "EC-22"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-23.md"
+  },
+  {
+    "id": "EC-24",
+    "project": "EC",
+    "number": 24,
+    "title": "Eviction a paměť cache",
+    "topics": [
+      "eviction",
+      "memory",
+      "cli"
+    ],
+    "goal": "Vysvětli rozdíl mezi expirací a odstraněním kvůli paměti.",
+    "steps": [
+      "Na cache serveru přečti maxmemory, maxmemory-policy a INFO memory/stats.",
+      "Generuj omezené množství větších cache hodnot do dosažení eviction a sleduj evicted_keys.",
+      "Porovnej allkeys-lru, allkeys-lfu, volatile-lru a noeviction; v labu prakticky stačí allkeys-lru versus noeviction. Po pokusu obnov výchozí konfiguraci."
+    ],
+    "checks": [
+      "Umíš ukázat odstranění klíče i před koncem TTL.",
+      "Při noeviction zachytíš odmítnutý zápis bez tvrzení, že čtení také musí selhat.",
+      "Víš, proč trvalá obchodní data nepatří na server, který je může libovolně evictovat."
+    ],
+    "trap": "Persistovaný klíč bez TTL může být odstraněn politikou allkeys-*; PERSIST neznamená ochranu před eviction.",
+    "question": "Proč volatile-* nemusí uvolnit paměť, když žádný klíč nemá TTL?",
+    "hint": "Maxmemory není přesná velikost všech procesových alokací. Nenastavuj při testu limit pod základní paměť serveru; sleduj MEMORY USAGE i INFO.",
+    "commands": "CONFIG GET/SET, INFO memory, INFO stats, MEMORY USAGE",
+    "mins": 50,
+    "level": "P",
+    "deps": [
+      "EC-23"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-24.md"
+  },
+  {
+    "id": "EC-25",
+    "project": "EC",
+    "number": 25,
+    "title": "CLI incident: poškozená cache",
+    "topics": [
+      "cli",
+      "errors",
+      "scan",
+      "ttl"
+    ],
+    "goal": "Diagnostikuj několik závad pouze z běžně dostupných důkazů.",
+    "steps": [
+      "Vytvoř ec:cache:product:p101 jako List, ec:cache:product:p102 jako nevalidní JSON String a p103 bez TTL.",
+      "Přidej query cache se starou verzí katalogu a neaktuální cenový index.",
+      "Vyšetři TYPE, PTTL, obsah a velikost hodnot; poškozené cache oprav načtením ze zdroje a chybějící TTL doplň."
+    ],
+    "checks": [
+      "V incident.md je pět závad s příčinou a opravou.",
+      "Žádná oprava nemaže původní repository.",
+      "Po opravě projdou opakovaná čtení detailů a kontrola cenového indexu."
+    ],
+    "trap": "WRONGTYPE neznamená poškozený Redis server; obvykle jde o nesprávně použitý klíč.",
+    "question": "Jak poznáš rozdíl mezi cache miss, nevalidní hodnotou a nedostupným serverem?",
+    "hint": "Nejprve typ, potom obsah. U nedůvěryhodné serializované cache zachyť parse error, invaliduj konkrétní klíč a obnov ze zdroje.",
+    "commands": "TYPE, GET, LRANGE, HGETALL, PTTL, SCAN, MEMORY USAGE, UNLINK",
+    "mins": 50,
+    "level": "P",
+    "deps": [
+      "EC-24"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-25.md"
+  },
+  {
+    "id": "EC-26",
+    "project": "EC",
+    "number": 26,
+    "title": "Závěrečná mise: oprava katalogu",
+    "topics": [
+      "capstone",
+      "cache",
+      "transactions",
+      "client",
+      "cli"
+    ],
+    "goal": "Spoj naučené postupy do jednoho samostatného praktického ověření.",
+    "steps": [
+      "Ze seedu připrav API nebo service funkce pro detail, filtrování, změnu ceny a rezervaci zásoby.",
+      "Připrav 20 souběžných rezervací posledního kusu, invalidaci query cache, expiraci detailu a audit klíčů.",
+      "Během běhu vypni Redis, obnov jej a ukonči aplikaci přes SIGTERM. Zdokumentuj výsledky včetně limitů konzistence."
+    ],
+    "checks": [
+      "Detail i query cache mají správné TTL a klíče.",
+      "Poslední kus získá právě jeden klient; Hash a index ceny odpovídají.",
+      "Katalog při výpadku cache přejde na zdroj, audit nevyužívá KEYS * a shutdown dokončí nebo výslovně ukončí práci."
+    ],
+    "trap": "Odpověď „test nespadl“ nestačí: musíš zkontrolovat stav dat po chybách.",
+    "question": "Které garance poskytuje jednotlivý příkaz, transakce, Lua a tvoje aplikace?",
+    "hint": "Pokus omez na 90 minut a až potom otevři nápovědy. Hotovo znamená splněné invarianty a vysvětlení chybových větví.",
+    "commands": "Kombinace EC-01 až EC-25",
+    "mins": 90,
+    "level": "P",
+    "deps": [
+      "EC-25"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-26.md"
+  },
+  {
+    "id": "EC-27",
+    "project": "EC",
+    "number": 27,
+    "title": "Redis Search nad katalogem",
+    "topics": [
+      "search",
+      "json"
+    ],
+    "goal": "Vyzkoušej serverový index vedle již existující cache výsledků.",
+    "steps": [
+      "Ověř FT.CREATE a vytvoř index nad ec:json:product:* s TEXT name, TAG category a NUMERIC priceCents.",
+      "Napiš textový dotaz s kategorií a intervalem ceny, stránkováním a řazením; nastav potřebný SORTABLE field.",
+      "Změň dokument a ověř index; vypiš FT.INFO. Navrhni jednu agregaci počtu produktů podle kategorie."
+    ],
+    "checks": [
+      "Dotaz kombinuje tři typy filtrů a vrací očekávaná ID.",
+      "Index nezahrnuje jiné prefixy.",
+      "Vysvětlíš rozdíl FT.SEARCH versus SCAN MATCH."
+    ],
+    "trap": "SCAN MATCH filtruje názvy klíčů, ne vnitřní pole produktu.",
+    "question": "Kdy je NUMERIC index vhodnější než ruční cenový Sorted Set?",
+    "hint": "Zapiš použitý query dialect a schema. Cache dotazů je samostatná vrstva i tehdy, když zdrojem výsledků je Redis Search.",
+    "commands": "FT.CREATE, FT.SEARCH, FT.INFO, FT.AGGREGATE",
+    "mins": 60,
+    "level": "R",
+    "deps": [
+      "EC-05",
+      "EC-10"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-27.md"
+  },
+  {
+    "id": "EC-28",
+    "project": "EC",
+    "number": 28,
+    "title": "Bitmap a HyperLogLog pro návštěvnost",
+    "topics": [
+      "bitmap",
+      "hll"
+    ],
+    "goal": "Porovnej přesnou a přibližnou unikátní návštěvnost.",
+    "steps": [
+      "Pro číselná userId 1,2,2,7,7,9 vytvoř denní bitmapu a HyperLogLog.",
+      "Vyhodnoť SETBIT/GETBIT/BITCOUNT a PFADD/PFCOUNT.",
+      "Přidej druhý den a porovnej union bitmap přes BITOP s union HLL přes PFMERGE."
+    ],
+    "checks": [
+      "Bitmap vrací přesně 4 unikátní uživatele prvního dne.",
+      "U HLL test nepožaduje obecnou přesnost bez chyby na velkých datech.",
+      "Dokážeš zdůvodnit paměťový problém obrovského řídkého bitmap offsetu."
+    ],
+    "trap": "HyperLogLog nevrátí seznam uživatelů ani spolehlivý membership test.",
+    "question": "Který typ bys zvolil pro přesnou odpověď, zda konkrétní uživatel produkt viděl?",
+    "hint": "Pro membership použij Set nebo bitmap s rozumnými hustými ID. HLL je pro odhad kardinality.",
+    "commands": "SETBIT, GETBIT, BITCOUNT, BITOP, PFADD, PFCOUNT, PFMERGE",
+    "mins": 40,
+    "level": "R",
+    "deps": [
+      "EC-03",
+      "EC-11"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-28.md"
+  },
+  {
+    "id": "EC-29",
+    "project": "EC",
+    "number": 29,
+    "title": "Stream změn katalogu",
+    "topics": [
+      "streams",
+      "delivery"
+    ],
+    "goal": "Procvič persistentní log událostí s potvrzováním zpracování.",
+    "steps": [
+      "Zapisuj události změn do ec:events:products přes XADD.",
+      "Vytvoř consumer group a dva konzumenty přes XREADGROUP; po dokončení XACK.",
+      "Nech jednoho konzumenta spadnout před ACK, prohlédni XPENDING a převeď starou zprávu přes XAUTOCLAIM."
+    ],
+    "checks": [
+      "Událost bez ACK je dohledatelná v pending.",
+      "Převzatá zpráva se může zpracovat znovu, proto je handler idempotentní.",
+      "ACK nezaměňuješ za odstranění položky ze streamu."
+    ],
+    "trap": "Consumer groups samy negarantují exactly-once obchodní účinek.",
+    "question": "Jak se liší XREADGROUP s > od čtení vlastní pending historie?",
+    "hint": "Do události dej eventId a productVersion. Před opětovným zpracováním ověř stav nebo deduplikační záznam.",
+    "commands": "XADD, XRANGE, XGROUP CREATE, XREADGROUP, XACK, XPENDING, XAUTOCLAIM, XTRIM",
+    "mins": 60,
+    "level": "R",
+    "deps": [
+      "EC-08",
+      "EC-19"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-29.md"
+  },
+  {
+    "id": "EC-30",
+    "project": "EC",
+    "number": 30,
+    "title": "Pub/Sub pro oznámení invalidace",
+    "topics": [
+      "pubsub",
+      "delivery"
+    ],
+    "goal": "Ověř, co se stane s oznámením, když odběratel není připojen.",
+    "steps": [
+      "Připrav publisher a subscriber na samostatném spojení pro ec:product:updated.",
+      "Publikuj událost, odpoj odběratele, publikuj další a pak ho připoj.",
+      "Vysvětli, zda by tento mechanismus stačil jako jediná ochrana lokální cache před zastaráním."
+    ],
+    "checks": [
+      "Připojený odběratel dostane událost.",
+      "Událost z doby odpojení se automaticky nepřehraje.",
+      "Návrh invalidace obsahuje TTL nebo mechanismus opětovné synchronizace."
+    ],
+    "trap": "Pub/Sub nemá pending list a běžné zprávy neukládá jako Stream.",
+    "question": "Proč je PUBLISH nevhodný jako jediná evidence zaplacené objednávky?",
+    "hint": "Porovnej at-most-once doručení Pub/Sub s opakovatelným čtením Streamu.",
+    "commands": "PUBLISH, SUBSCRIBE, PSUBSCRIBE, UNSUBSCRIBE",
+    "mins": 35,
+    "level": "R",
+    "deps": [
+      "EC-22"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-30.md"
+  },
+  {
+    "id": "EC-31",
+    "project": "EC",
+    "number": 31,
+    "title": "Cluster, hash tags a hranice transakcí",
+    "topics": [
+      "cluster",
+      "keys",
+      "atomicity"
+    ],
+    "goal": "Posuď přenos návrhu do Redis Cluster bez nutnosti stavět cluster.",
+    "steps": [
+      "Na papíře rozděl klíče detailu, zásoby a cenového žebříčku do hash slotů.",
+      "Navrhni dvojici ec:{p101}:stock a ec:{p101}:reservation:r1 pro společný atomický blok.",
+      "Popiš problém globálního cenového indexu a rozdíl replikace, Sentinel failoveru a cluster shardingu."
+    ],
+    "checks": [
+      "Vysvětlíš 16384 slotů a účel hash tagu.",
+      "Uvedeš příklad multi-key operace, která může skončit CROSSSLOT.",
+      "Neslibuješ globální atomický update napříč libovolnými shardy."
+    ],
+    "trap": "Použití stejného tagu pro celý katalog může koncentrovat veškerou práci na jeden shard.",
+    "question": "Proč replica není totéž co další shard s jinou částí dat?",
+    "hint": "Praktická část s CLUSTER KEYSLOT je volitelná a vyžaduje cluster-enabled server; přiložený Compose je standalone.",
+    "commands": "Hash slots, hash tags, CROSSSLOT, MOVED; CLUSTER KEYSLOT volitelně",
+    "mins": 40,
+    "level": "R",
+    "deps": [
+      "EC-15",
+      "EC-18"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-31.md"
+  },
+  {
+    "id": "EC-32",
+    "project": "EC",
+    "number": 32,
+    "title": "Cache stampede a bezpečné uvolnění zámku",
+    "topics": [
+      "locks",
+      "cache",
+      "lua"
+    ],
+    "goal": "Omez souběžné načítání stejného drahého produktu při cache miss.",
+    "steps": [
+      "Spusť 30 souběžných missů a změř počet čtení repository.",
+      "Přidej krátký lock přes SET NX PX s náhodným tokenem vlastníka a bounded wait pro ostatní.",
+      "Uvolni lock Lua skriptem jen při shodě tokenu; simuluj vypršení locku a získání jiným klientem."
+    ],
+    "checks": [
+      "Ve zdravém lokálním scénáři výrazně snížíš počet DB čtení.",
+      "Starý vlastník nesmaže lock nového vlastníka.",
+      "Po pádu vlastníka mohou ostatní po TTL pokračovat."
+    ],
+    "trap": "TTL locku může vypršet během práce. Tento jednoduchý lock není univerzální distribuovaná garance ani ochrana všech externích zápisů.",
+    "question": "Proč samostatné GET tokenu a následné DEL nestačí?",
+    "hint": "Kontrola tokenu a odstranění musí být jeden atomický krok. Pro tento lab jde o omezení duplicitního plnění cache.",
+    "commands": "SET NX PX, GET, EVAL, DEL",
+    "mins": 60,
+    "level": "R",
+    "deps": [
+      "EC-06",
+      "EC-18"
+    ],
+    "path": "01_Ecommerce/ukoly/EC-32.md"
+  },
+  {
+    "id": "FD-01",
+    "project": "FD",
+    "number": 1,
+    "title": "Samostatný backend rozvozu",
+    "topics": [
+      "client",
+      "cli",
+      "keys"
+    ],
+    "goal": "Připrav vlastní projekt s Redis jako stavovou vrstvou pro rozvoz.",
+    "steps": [
+      "Připoj node-redis v5 na redis-fd z setup/; nepoužívej port katalogové cache.",
+      "Založ služby menus, orders a drivers; pro lab stačí funkce nebo Fastify endpointy.",
+      "Ověř CLI PING, INFO server/persistence a verzi klienta; zaveď REDIS_URL a error handler."
+    ],
+    "checks": [
+      "Food projekt používá vlastní Redis instanci a prefix fd:.",
+      "Umíš dohledat aktivní konfiguraci persistence.",
+      "Chybný port nebo nedostupný server nevyvolá nekontrolovanou neobslouženou událost."
+    ],
+    "trap": "Samostatné prefixy na jednom serveru neoddělují maxmemory ani politiku eviction.",
+    "question": "Proč není pro živé objednávky vhodné převzít allkeys-lru z cache katalogu?",
+    "hint": "Přiložený food server má AOF a noeviction; později konfiguraci cíleně změníš při persistence labu.",
+    "commands": "PING, INFO, CONFIG GET; createClient, connect",
+    "mins": 30,
+    "level": "P",
+    "deps": [],
+    "path": "02_Food_Delivery/ukoly/FD-01.md"
+  },
+  {
+    "id": "FD-02",
+    "project": "FD",
+    "number": 2,
+    "title": "Model objednávky, řidiče a zákazníka",
+    "topics": [
+      "model",
+      "hashes",
+      "types"
+    ],
+    "goal": "Rozhodni, které údaje patří do Hash a které do samostatných struktur.",
+    "steps": [
+      "Ze seedu vytvoř fd:order:o1001 a fd:driver:d1 s plochými poli.",
+      "Navrhni fd:queue:orders, fd:drivers:online, fd:geo:drivers a fd:rank:dishes.",
+      "Přes HSET/HGET/HGETALL aktualizuj status; HSETNX použij pro createdAt a HINCRBY pro completedDeliveries."
+    ],
+    "checks": [
+      "Tabulka klíčů uvádí typ, TTL a důvod volby.",
+      "Aktualizace status neodstraní customerId.",
+      "Umíš rozlišit neexistující Hash od hashe s chybějícím fieldem."
+    ],
+    "trap": "Řidičský profil, online stav a geo poloha jsou různé reprezentace; změna jedné automaticky neaktualizuje další.",
+    "question": "Proč List není vhodný pro rychlé zjištění status konkrétní objednávky?",
+    "hint": "Hash pro detail, List pro pořadí práce, Set pro membership, Sorted Set pro pořadí podle score.",
+    "commands": "HSET, HGET, HGETALL, HSETNX, HINCRBY, HEXISTS, HDEL, TYPE",
+    "mins": 45,
+    "level": "P",
+    "deps": [
+      "FD-01"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-02.md"
+  },
+  {
+    "id": "FD-03",
+    "project": "FD",
+    "number": 3,
+    "title": "Menu jako JSON a jako Hash",
+    "topics": [
+      "json",
+      "hashes",
+      "model"
+    ],
+    "goal": "Procvič reprezentaci vnořeného menu a samostatných jídel.",
+    "steps": [
+      "Načti data/menus.json do fd:menu:r1 jako Redis JSON.",
+      "Změň dostupnost jednoho jídla podle jeho ID pomocí JSONPath a uprav nested options.",
+      "Alternativně ulož stejná jídla jako fd:dish:<id> Hash a porovnej aktualizaci jednoho pole."
+    ],
+    "checks": [
+      "Úprava dish1 nepoškodí dish2.",
+      "Změna ceny zachová ostatní pole i ostatní jídla.",
+      "Umíš vysvětlit rozdíl typů výsledků JSON.GET a HGETALL v klientu."
+    ],
+    "trap": "Index pole není stabilní identita jídla; po odstranění položky se pořadí může změnit.",
+    "question": "Kdy je Hash na jídlo jednodušší než jeden velký JSON dokument pro celou restauraci?",
+    "hint": "Ověř JSON příkazy pomocí COMMAND INFO. Před filtrováním JSONPath nejprve vyzkoušej jednoduchou cestu.",
+    "commands": "JSON.SET, JSON.GET, JSON.NUMINCRBY, JSON.ARRAPPEND, JSON.DEL; HSET, HGET",
+    "mins": 45,
+    "level": "P",
+    "deps": [
+      "FD-02"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-03.md"
+  },
+  {
+    "id": "FD-04",
+    "project": "FD",
+    "number": 4,
+    "title": "Heartbeat řidiče a expirace",
+    "topics": [
+      "strings",
+      "ttl",
+      "keys"
+    ],
+    "goal": "Detekuj neaktivního řidiče z krátce platného heartbeat klíče.",
+    "steps": [
+      "Každý heartbeat zapíše fd:driver:<id>:heartbeat s TTL 15 s jedním příkazem.",
+      "Implementuj dotaz isAlive a prodloužení při dalším heartbeatu.",
+      "Na fd:lab:ttl:* procvič EX/PX, EXAT/PXAT, GETEX, PERSIST, EXPIRE NX/XX/GT/LT a čtení časů."
+    ],
+    "checks": [
+      "Po zastavení heartbeatů klíč zmizí v přiměřené časové toleranci.",
+      "Opakovaný heartbeat prodlouží životnost.",
+      "Rozlišíš TTL -1 a -2 a nepoužiješ milisekundy na místě sekund."
+    ],
+    "trap": "TTL se v základním modelu vztahuje na celý klíč, ne automaticky na konkrétní Set member nebo Hash field.",
+    "question": "Proč by prosté EXPIRE na společném online Setu neodhlašovalo jednotlivé řidiče?",
+    "hint": "Použij samostatné heartbeat klíče nebo timestamp Sorted Set. Specifické novější hash-field TTL je jiná funkce a závisí na verzi.",
+    "commands": "SET EX/PX/EXAT/PXAT, TTL, PTTL, EXPIRE, PERSIST, GETEX, EXPIRETIME, PEXPIRETIME",
+    "mins": 45,
+    "level": "P",
+    "deps": [
+      "FD-03"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-04.md"
+  },
+  {
+    "id": "FD-05",
+    "project": "FD",
+    "number": 5,
+    "title": "Online řidiči a odstranění zastaralých členů",
+    "topics": [
+      "sets",
+      "sortedsets",
+      "ttl"
+    ],
+    "goal": "Spoj membership s informací o čerstvosti.",
+    "steps": [
+      "Zaveď online Set přes SADD/SREM a dotazy SISMEMBER/SCARD.",
+      "Vedle něj udrž fd:drivers:lastseen jako Sorted Set s časem posledního heartbeat.",
+      "Napiš úklid řidičů starších než 15 s; před odstraněním ověř, že se heartbeat mezitím neobnovil."
+    ],
+    "checks": [
+      "Duplicitní online přihlášení nezvýší počet řidičů.",
+      "Řidič bez heartbeat přestane být nabízen jako aktivní.",
+      "Popsaný nebo opravený závod neodstraní právě obnoveného řidiče."
+    ],
+    "trap": "Expirace heartbeat klíče sama neodstraní ID z online Setu ani z geo indexu.",
+    "question": "Proč nestačí bez kontroly mazat ID nalezená starým ZRANGE BYSCORE?",
+    "hint": "Pro jednoduchou verzi rozhoduj dostupnost při čtení podle lastseen. Atomický úklid můžeš dokončit krátkým Lua skriptem v FD-12.",
+    "commands": "SADD, SREM, SISMEMBER, SCARD, ZADD, ZRANGE BYSCORE, ZREM",
+    "mins": 45,
+    "level": "P",
+    "deps": [
+      "FD-04"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-05.md"
+  },
+  {
+    "id": "FD-06",
+    "project": "FD",
+    "number": 6,
+    "title": "FIFO fronta objednávek",
+    "topics": [
+      "lists",
+      "queues",
+      "client"
+    ],
+    "goal": "Zpracovávej přijaté objednávky v pořadí vložení.",
+    "steps": [
+      "Vlož o1001,o1002,o1003 přes RPUSH do fd:queue:orders.",
+      "Napiš workera s BLPOP na vyhrazeném spojení a konečným timeoutem.",
+      "V CLI zkontroluj LRANGE, LLEN a chování prázdné fronty; porovnej FIFO s alternativním směrem popu."
+    ],
+    "checks": [
+      "Jeden worker odebere o1001, pak o1002, pak o1003.",
+      "Čekající worker neblokuje běžné API příkazy na jiném spojení.",
+      "Prázdná fronta nevede k vytíženému nekonečnému pollingu."
+    ],
+    "trap": "Pokud worker po odebrání spadne, obyčejný BLPOP zprávu nevrátí.",
+    "question": "Která kombinace push/pop vytvoří FIFO a která LIFO?",
+    "hint": "RPUSH + BLPOP je FIFO. Blokující příkazy potřebují vlastní connection; server přitom může obsluhovat ostatní klienty.",
+    "commands": "RPUSH, LPUSH, BLPOP, BRPOP, LRANGE, LLEN",
+    "mins": 45,
+    "level": "P",
+    "deps": [
+      "FD-05"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-06.md"
+  },
+  {
+    "id": "FD-07",
+    "project": "FD",
+    "number": 7,
+    "title": "Fronta s processing seznamem",
+    "topics": [
+      "lists",
+      "queues",
+      "delivery"
+    ],
+    "goal": "Umožni zotavení po pádu workera bez ztracení reference na objednávku.",
+    "steps": [
+      "Nahraď odebrání přes BLPOP přesunem BLMOVE z ready LEFT do processing RIGHT.",
+      "Po dokončení potvrď práci odstraněním konkrétního orderId z processing; eviduj čas převzetí.",
+      "Spusť obnovu staré rozpracované objednávky. Pro základní lab použij jeden worker, pak popiš závod se stále běžícím workerem."
+    ],
+    "checks": [
+      "Pád po převzetí zanechá orderId v processing.",
+      "Úspěšné dokončení odstraní odpovídající položku.",
+      "Opakované doručení stejného orderId nevytvoří druhý obchodní účinek."
+    ],
+    "trap": "Processing List sám neobsahuje vlastníka, deadline ani fencing token. Tyto údaje musíš doplnit nebo využít Streams.",
+    "question": "Proč spolehlivé doručení neznamená exactly-once zpracování?",
+    "hint": "Jednoduchý lab prokáže obnovu; robustní multi-worker reclaim potřebuje atomický přechod a kontrolu vlastnictví.",
+    "commands": "LMOVE, BLMOVE, LREM, LRANGE, ZADD; idempotence",
+    "mins": 60,
+    "level": "P",
+    "deps": [
+      "FD-06"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-07.md"
+  },
+  {
+    "id": "FD-08",
+    "project": "FD",
+    "number": 8,
+    "title": "Trending jídla a termíny rozvozu",
+    "topics": [
+      "sortedsets",
+      "model"
+    ],
+    "goal": "Použij různé score pro popularitu a pro časový deadline.",
+    "steps": [
+      "Při dokončení objednávky zvyš skóre prodaných jídel v fd:rank:dishes o počet kusů.",
+      "Do fd:orders:deadline vlož member=orderId a score=dueAtMs.",
+      "Implementuj TOP 3 jídel a objednávky po termínu; procvič rank, score, count a odstranění dokončené objednávky."
+    ],
+    "checks": [
+      "Pro události dish1×2, dish2×1, dish1×1 má dish1 skóre 3 a dish2 skóre 1.",
+      "Časový dotaz používá stejnou jednotku jako uložené score.",
+      "Dokončená objednávka se už neobjevuje mezi čekajícími."
+    ],
+    "trap": "Globální ZSET s celoživotním počtem není automaticky žebříček za poslední hodinu.",
+    "question": "Jak bys vytvořil denní trending bez neomezeného hromadění dat?",
+    "hint": "Použij denní key bucket s TTL. Počítej obchodní událost pouze jednou; opakování workera nesmí znovu zvýšit skóre.",
+    "commands": "ZADD, ZINCRBY, ZRANGE REV/BYSCORE/WITHSCORES, ZRANK, ZSCORE, ZCOUNT, ZREM",
+    "mins": 45,
+    "level": "P",
+    "deps": [
+      "FD-07"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-08.md"
+  },
+  {
+    "id": "FD-09",
+    "project": "FD",
+    "number": 9,
+    "title": "Dietní filtry a dostupnost jídel",
+    "topics": [
+      "sets",
+      "queries"
+    ],
+    "goal": "Slož nabídku z nezávislých vlastností bez ručního porovnávání všech položek.",
+    "steps": [
+      "Vytvoř Sety vegetarian, spicy a available pro dish1 až dish6 podle fixtures.",
+      "Nabídni vegetariánská dostupná jídla, všechna spicy nebo vegetarian a available bez spicy.",
+      "Vytvoř snapshot přes SINTERSTORE a ověř změnu zdrojových množin. Pro velký Set použij SSCAN."
+    ],
+    "checks": [
+      "Výsledky odpovídají fixture, bez duplicit a bez závislosti na pořadí.",
+      "SISMEMBER a SMISMEMBER vracejí správný membership.",
+      "Snapshot se po změně menu sám neaktualizuje."
+    ],
+    "trap": "SUNION nepřičítá četnosti; Set uchovává unikátní hodnoty.",
+    "question": "Jak se liší SCAN nad databází a SSCAN nad jedním Setem?",
+    "hint": "SINTER hledá společné členy, SDIFF členy první množiny bez dalších. Při testu setřiď pouze pro porovnání.",
+    "commands": "SADD, SREM, SINTER, SUNION, SDIFF, SINTERSTORE, SCARD, SSCAN, SMISMEMBER",
+    "mins": 40,
+    "level": "P",
+    "deps": [
+      "FD-08"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-09.md"
+  },
+  {
+    "id": "FD-10",
+    "project": "FD",
+    "number": 10,
+    "title": "Poloha řidičů a GEO dotazy",
+    "topics": [
+      "geo",
+      "model"
+    ],
+    "goal": "Najdi řidiče v okolí restaurace a ověř práci se souřadnicemi.",
+    "steps": [
+      "Načti data/drivers.json přes GEOADD do fd:geo:drivers.",
+      "Vyhledej řidiče do 2 km od r1 pomocí GEOSEARCH ASC WITHDIST a vrať nejbližší tři.",
+      "Procvič GEOPOS, GEODIST a odstranění řidiče; porovnej kruhové a obdélníkové hledání."
+    ],
+    "checks": [
+      "d1 a d2 jsou v okruhu 2 km od r1, d3 z Prahy nikoliv.",
+      "Výsledek má vzdálenost a jednotku; netestuješ přesnou shodu floating-point souřadnic.",
+      "Odstraněný řidič v dalším dotazu chybí."
+    ],
+    "trap": "GEOADD očekává longitude, latitude, tedy zeměpisnou délku před šířkou.",
+    "question": "Proč umíš geo člena odstranit pomocí ZREM?",
+    "hint": "GEO využívá Sorted Set reprezentaci; běžné ZADD s vlastním score by geo zakódování poškodilo. Redis vzdálenost není dojezd po silnici.",
+    "commands": "GEOADD, GEOSEARCH, GEOPOS, GEODIST, ZREM",
+    "mins": 45,
+    "level": "P",
+    "deps": [
+      "FD-09"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-10.md"
+  },
+  {
+    "id": "FD-11",
+    "project": "FD",
+    "number": 11,
+    "title": "Nejbližší dostupný řidič",
+    "topics": [
+      "geo",
+      "concurrency",
+      "model"
+    ],
+    "goal": "Spoj geografii s online stavem a rezervací řidiče.",
+    "steps": [
+      "Najdi kandidáty podle vzdálenosti a filtruj čerstvý heartbeat, online status a stav busy.",
+      "Zaveď atomickou rezervaci fd:driver:<id>:assignment pomocí SET NX EX s orderId; jde o dočasnou alokaci v labu.",
+      "Spusť dvě objednávky současně a ověř, že nedostanou stejného řidiče."
+    ],
+    "checks": [
+      "Offline nebo busy řidič není přidělen.",
+      "Dvě souběžné rezervace jednoho řidiče mají právě jednoho vítěze.",
+      "Po vypršení dočasné rezervace umíš vysvětlit nutnost obnovy a kontroly vlastnictví."
+    ],
+    "trap": "Nejdřív COUNT 3 a až potom filtr dostupnosti může přehlédnout čtvrtého nejbližšího volného řidiče.",
+    "question": "Proč geodotaz sám nevyřeší atomické přidělení řidiče?",
+    "hint": "Pro malý lab načti kandidáty v celém omezeném okruhu nebo postupně zvyš limit. Dostupnost znovu ověř v okamžiku rezervace.",
+    "commands": "GEOSEARCH, SISMEMBER, GET, SET NX EX",
+    "mins": 60,
+    "level": "P",
+    "deps": [
+      "FD-10"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-11.md"
+  },
+  {
+    "id": "FD-12",
+    "project": "FD",
+    "number": 12,
+    "title": "Idempotentní dokončení objednávky v Lua",
+    "topics": [
+      "lua",
+      "atomicity",
+      "delivery"
+    ],
+    "goal": "Zajisti, že retry dokončení nezvýší počítadla dvakrát.",
+    "steps": [
+      "Zaveď completeOrder(orderId, driverId, dishId, quantity) jako malý lab pro jednu položku objednávky.",
+      "Skript dostane všechny klíče přes KEYS a hodnoty přes ARGV; před zápisy ověří status, vlastníka a číselné parametry.",
+      "Pouze při prvním povoleném přechodu nastav completed, navyš driver counter a trending score; opakování vrátí already_completed. Nahraj přes SCRIPT LOAD a řeš NOSCRIPT."
+    ],
+    "checks": [
+      "Dvacet stejných volání zvýší čítač řidiče jen o 1 a score jídla jen o quantity.",
+      "Neplatný stav či jiný driver nic nezmění.",
+      "Znáš omezení částečných zápisů při runtime chybě a validuješ typy před zápisem."
+    ],
+    "trap": "SET NX marker a následné samostatné zápisy mohou po pádu označit nedokončenou práci jako hotovou.",
+    "question": "Proč ani Lua automaticky nezajistí přesně jeden účinek u externí platební služby?",
+    "hint": "Pro lab použij stav objednávky jako dlouhodobý deduplikační důkaz. U expirovaného markeru by se otevřelo okno opětovného zpracování.",
+    "commands": "EVAL, SCRIPT LOAD, EVALSHA, HGET, HSET, HINCRBY, ZINCRBY",
+    "mins": 70,
+    "level": "P",
+    "deps": [
+      "FD-11"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-12.md"
+  },
+  {
+    "id": "FD-13",
+    "project": "FD",
+    "number": 13,
+    "title": "Přijetí objednávky a chyby transakce",
+    "topics": [
+      "transactions",
+      "errors",
+      "queues"
+    ],
+    "goal": "Sjednoť vytvoření detailu a vložení reference do fronty.",
+    "steps": [
+      "V MULTI/EXEC vytvoř Hash objednávky, vlož orderId do Listu a přidej deadline do ZSET.",
+      "V izolovaném pokusu nahraď queue Stringem, transakci spusť a prohlédni všechny klíče.",
+      "Odděleně vyvolej chybu počtu argumentů při zařazení a použij DISCARD pro zrušení platné fronty."
+    ],
+    "checks": [
+      "Normální cesta vytvoří detail, queue reference i deadline.",
+      "U runtime WRONGTYPE správně popíšeš částečné změny.",
+      "Nezaměníš serverové EXEC výsledky za JS návrat před dokončením Promise."
+    ],
+    "trap": "Atomická transakce bez prokládání nemá SQL rollback při runtime chybě.",
+    "question": "Jak bys zabránil duplicitnímu zařazení při opakování HTTP requestu?",
+    "hint": "Vytvoření objednávky potřebuje vlastní idempotency strategii; pro tuto kartu odděleně proveď normální příjem a chybový experiment.",
+    "commands": "MULTI, EXEC, DISCARD, HSET, RPUSH, ZADD",
+    "mins": 45,
+    "level": "P",
+    "deps": [
+      "FD-12"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-13.md"
+  },
+  {
+    "id": "FD-14",
+    "project": "FD",
+    "number": 14,
+    "title": "WATCH pro povolené změny stavu",
+    "topics": [
+      "watch",
+      "concurrency",
+      "client"
+    ],
+    "goal": "Zabraň souběžnému zrušení a zahájení rozvozu téže objednávky.",
+    "steps": [
+      "Definuj created → accepted → delivering → completed a zrušení pouze před delivering.",
+      "Pomocí WATCH nad objednávkou ověř aktuální stav a v transakci proveď jednu povolenou změnu.",
+      "Spusť cancel a startDelivery souběžně na dvou izolovaných spojeních; konflikt zopakuj s novým čtením a omezeným retry."
+    ],
+    "checks": [
+      "Výsledný stav odpovídá jedné povolené posloupnosti.",
+      "Zrušená objednávka není bez dalšího přepnuta na delivering.",
+      "Předčasný návrat uklidí WATCH a connection."
+    ],
+    "trap": "WATCH hlídá celý klíč; změna jiného fieldu stejného Hashe může způsobit konflikt.",
+    "question": "Proč kontrola stavu před WATCH nestačí?",
+    "hint": "Stav čti až po WATCH. V node-redis v5 zachyť WatchError odděleně od síťových chyb.",
+    "commands": "WATCH, UNWATCH, HGET, MULTI, HSET, EXEC",
+    "mins": 55,
+    "level": "P",
+    "deps": [
+      "FD-13"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-14.md"
+  },
+  {
+    "id": "FD-15",
+    "project": "FD",
+    "number": 15,
+    "title": "Pipeline import menu a heartbeatů",
+    "topics": [
+      "pipeline",
+      "performance",
+      "client"
+    ],
+    "goal": "Sniž počet síťových čekání u nezávislých příkazů.",
+    "steps": [
+      "Vytvoř 1000 testovacích jídel a importuj je sekvenčně i po dávkách.",
+      "Porovnej Promise.all s multi().execAsPipeline() a samostatně multi().exec().",
+      "Do testovací dávky vlož příkaz s nesprávným typem a ověř, které ostatní změny proběhly."
+    ],
+    "checks": [
+      "Úspěšný import má správný počet unikátních ID.",
+      "Výsledky dávky přiřadíš k odpovídajícím příkazům.",
+      "Report vysvětlí rozdíl latency optimalizace a atomického bloku."
+    ],
+    "trap": "Obrovská dávka může spotřebovat paměť na obou stranách a zhoršit latenci ostatních klientů.",
+    "question": "Kdy je pipeline nevhodná kvůli závislosti dalšího příkazu na předchozím výsledku?",
+    "hint": "Dávkuj například po 100 a měř při stejném objemu dat; nepředpokládej pevný násobek zrychlení.",
+    "commands": "Promise.all, execAsPipeline(), exec()",
+    "mins": 45,
+    "level": "P",
+    "deps": [
+      "FD-14"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-15.md"
+  },
+  {
+    "id": "FD-16",
+    "project": "FD",
+    "number": 16,
+    "title": "Audit klíčů a struktur ve velkém",
+    "topics": [
+      "scan",
+      "cli",
+      "keys"
+    ],
+    "goal": "Najdi neplatné stavy bez jednorázového načtení celé databáze.",
+    "steps": [
+      "Připrav 10000 fd:lab:audit:order:* Hashů, několik bez statusu a několik se špatným typem.",
+      "Napiš SCAN loop s MATCH a kontrolou TYPE, HGET a TTL v malých dávkách.",
+      "Přidej ukázky HSCAN, SSCAN a ZSCAN nad velkou strukturou; ošetři opakované položky."
+    ],
+    "checks": [
+      "Statický audit najde všechny záměrně vložené chyby.",
+      "Běh nekončí na prázdné stránce s nenulovým cursorem.",
+      "Report přiznává absenci konzistentního snapshotu při souběžných změnách."
+    ],
+    "trap": "DBSIZE počítá všechny klíče databáze, nikoliv pouze zvolený prefix.",
+    "question": "Jak se liší paměťová náročnost HGETALL a postupného HSCAN na obrovském Hashi?",
+    "hint": "Cursor používej přesně podle klientského API a nikdy ho nezaměň za offset nebo číslo stránky.",
+    "commands": "SCAN, HSCAN, SSCAN, ZSCAN, TYPE, TTL, DBSIZE",
+    "mins": 50,
+    "level": "P",
+    "deps": [
+      "FD-15"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-16.md"
+  },
+  {
+    "id": "FD-17",
+    "project": "FD",
+    "number": 17,
+    "title": "Archivace a neblokující mazání",
+    "topics": [
+      "delete",
+      "ttl",
+      "cli"
+    ],
+    "goal": "Odstraň stará laboratorní data bez zásahu do živé práce.",
+    "steps": [
+      "Vyber pouze dokončené objednávky starší než zvolená hranice; pro lab použij fd:lab:archive:*.",
+      "Připrav dry-run se seznamem klíčů a důvodem smazání; následně maž UNLINK po dávkách.",
+      "Zkontroluj také odvozené indexy; na kopii klíče ověř RENAME a RENAMENX včetně TTL."
+    ],
+    "checks": [
+      "Pending či delivering objednávky zůstávají.",
+      "Opakovaný úklid je bezpečný a nechybí ošetření prázdných dávek.",
+      "Nedržíš neomezený seznam všech klíčů v RAM."
+    ],
+    "trap": "Expirace detailu objednávky automaticky neodstraní její ID z Listu ani ZSET.",
+    "question": "Kdy stačí TTL a kdy musíš uklidit také reference v dalších strukturách?",
+    "hint": "Retence detailu a retence deduplikačního důkazu nemusí být stejná. Před smazáním zvaž, zda se starý event může znovu doručit.",
+    "commands": "SCAN, UNLINK, ZREM, LREM, RENAME, RENAMENX, TTL",
+    "mins": 45,
+    "level": "P",
+    "deps": [
+      "FD-16"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-17.md"
+  },
+  {
+    "id": "FD-18",
+    "project": "FD",
+    "number": 18,
+    "title": "RDB snapshot a obnova",
+    "topics": [
+      "persistence",
+      "rdb",
+      "cli"
+    ],
+    "goal": "Ověř rozdíl mezi pamětí serveru a posledním snapshotem.",
+    "steps": [
+      "Na jednorázové instanci podle setup/PERSISTENCE_LAB.md zapni pouze RDB a vypni automatické save pro řízený pokus.",
+      "Zapiš mark:A, spusť BGSAVE a počkej podle INFO persistence na úspěšné dokončení. Poté zapiš mark:B.",
+      "Ukonči proces SIGKILL, znovu spusť se stejným volume a prohlédni oba markery."
+    ],
+    "checks": [
+      "mark:A se obnoví z dokončeného snapshotu.",
+      "mark:B bez dalšího snapshotu po crashi chybí.",
+      "Rozlišíš SAVE a BGSAVE a uvedeš latenci, fork a riziko ztráty novějších zápisů."
+    ],
+    "trap": "Běžné čisté zastavení může vytvořit další snapshot a znehodnotit zamýšlený crash experiment.",
+    "question": "Co určuje možné okno ztráty dat u RDB?",
+    "hint": "V experimentu nemíchej zbylý AOF a RDB. Jednorázový lab používá samostatný volume a konfiguraci.",
+    "commands": "BGSAVE, SAVE, LASTSAVE, INFO persistence",
+    "mins": 60,
+    "level": "P",
+    "deps": [
+      "FD-17"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-18.md"
+  },
+  {
+    "id": "FD-19",
+    "project": "FD",
+    "number": 19,
+    "title": "AOF a politika fsync",
+    "topics": [
+      "persistence",
+      "aof",
+      "cli"
+    ],
+    "goal": "Změř obnovu zápisů a vysvětli kompromis mezi latencí a odolností.",
+    "steps": [
+      "Na odděleném AOF labu nastav appendonly yes a appendfsync everysec.",
+      "Průběžně zapisuj očíslované markery, uchovej potvrzená čísla v externím logu a proveď crash/restart.",
+      "Prostuduj a popiš always, everysec a no; spusť BGREWRITEAOF a sleduj INFO persistence."
+    ],
+    "checks": [
+      "Porovnáš potvrzené a obnovené markery, včetně případného nulového rozdílu.",
+      "Víš, že everysec obvykle riskuje přibližně poslední sekundu při skutečném selhání hosta; není to tvrdá univerzální garance.",
+      "Rewrite zachová aktuální dataset a nemusí zachovat původní historii všech příkazů."
+    ],
+    "trap": "SIGKILL Redis procesu nesimuluje ztrátu page cache operačního systému; proto experiment nemusí ztratit ani poslední zápisy.",
+    "question": "Proč appendfsync no neznamená „AOF je vypnutý“?",
+    "hint": "no nechává flush na OS. Novější Redis používá více AOF souborů s manifestem; nepočítej vždy s jediným appendonly.aof.",
+    "commands": "BGREWRITEAOF, INFO persistence, CONFIG GET appendonly/appendfsync",
+    "mins": 60,
+    "level": "P",
+    "deps": [
+      "FD-18"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-19.md"
+  },
+  {
+    "id": "FD-20",
+    "project": "FD",
+    "number": 20,
+    "title": "Volba durability pro živé objednávky",
+    "topics": [
+      "persistence",
+      "recovery",
+      "model"
+    ],
+    "goal": "Převeď pozorování z labů do konkrétního provozního rozhodnutí.",
+    "steps": [
+      "Porovnej bez persistence, RDB, AOF everysec a kombinaci RDB+AOF v tabulce.",
+      "Pro každou variantu uveď obnovu, možné okno ztráty, náklady a vhodnost pro cache versus objednávky.",
+      "Znovu načti konfiguraci hlavního food serveru a napiš krátký postup obnovy včetně kontroly ready/processing referencí."
+    ],
+    "checks": [
+      "Tabulka nevydává žádný způsob za absolutní ochranu proti všem ztrátám.",
+      "U zapnutých RDB i AOF víš, že se při startu typicky použije AOF pro obnovu.",
+      "Runbook odlišuje persistence, externí zálohu a replikaci."
+    ],
+    "trap": "Volume s daty není záloha proti smazání nebo poškození stejného volume.",
+    "question": "Jak po obnově zjistíš, že existují všechny detaily objednávek, na něž fronta odkazuje?",
+    "hint": "Pro skutečné finančně významné objednávky stanov zdroj pravdy a požadovanou ztrátu dat. Lab učí Redis garance, není hotový produkční účetní návrh.",
+    "commands": "INFO persistence, CONFIG GET, LRANGE, EXISTS",
+    "mins": 45,
+    "level": "P",
+    "deps": [
+      "FD-19"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-20.md"
+  },
+  {
+    "id": "FD-21",
+    "project": "FD",
+    "number": 21,
+    "title": "Paměť, noeviction a backpressure",
+    "topics": [
+      "eviction",
+      "memory",
+      "errors"
+    ],
+    "goal": "Zachovej již přijaté objednávky, když dochází paměť.",
+    "steps": [
+      "Na odděleném testovacím food serveru s noeviction postupně zaplň paměť omezeným generátorem.",
+      "Při odmítnutém zápisu zastav přijímání nové práce nebo vrať explicitní chybu; nevracej potvrzení neuložené objednávky.",
+      "Sleduj INFO memory/stats a MEMORY USAGE; po testu odstraň generovaná data."
+    ],
+    "checks": [
+      "Aplikace nehlásí přijetí, pokud zápis selhal.",
+      "Již existující údaje nejsou politikou noeviction automaticky odstraňovány.",
+      "Umíš porovnat noeviction, allkeys-lru/lfu a volatile-* podle účelu."
+    ],
+    "trap": "noeviction nezaručuje dostupnost zápisů ani ochranu před pádem celého procesu.",
+    "question": "Proč nestačí přidat TTL na všechny objednávky jen kvůli uvolnění paměti?",
+    "hint": "Backpressure znamená řízeně odmítnout nebo zpomalit novou práci. Retenci stanov podle životního cyklu dat.",
+    "commands": "CONFIG GET/SET, INFO memory/stats, MEMORY USAGE; OOM handling",
+    "mins": 50,
+    "level": "P",
+    "deps": [
+      "FD-20"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-21.md"
+  },
+  {
+    "id": "FD-22",
+    "project": "FD",
+    "number": 22,
+    "title": "Síťový výpadek při příjmu a zpracování",
+    "topics": [
+      "client",
+      "errors",
+      "delivery"
+    ],
+    "goal": "Rozliš nedostupný server a nejistý výsledek už odeslaného zápisu.",
+    "steps": [
+      "Nastav omezené čekání, reconnect strategii a explicitní offline queue politiku.",
+      "Přeruš spojení při čtení statusu, při příjmu objednávky a při completeOrder.",
+      "Obnov server a zopakuj operaci se stejným orderId; zkontroluj frontu i skóre jídel."
+    ],
+    "checks": [
+      "Během výpadku se request ukončí v definovaném limitu.",
+      "Příjem nevrací úspěch bez evidence uložení.",
+      "Retry completeOrder nezvýší trending dvakrát; případný duplicitní příjem identifikuješ a opravíš."
+    ],
+    "trap": "Timeout neprokazuje, že server zápis neprovedl. Lokální zrušení Promise nevrací stav serveru.",
+    "question": "Proč mají čtení statusu a vytvoření nové objednávky odlišnou retry strategii?",
+    "hint": "U nejednoznačného výsledku ověř stav podle stabilního ID. Loguj orderId a pokus, ne citlivé údaje ani přístupové heslo.",
+    "commands": "client events, reconnectStrategy, disableOfflineQueue; idempotence",
+    "mins": 60,
+    "level": "P",
+    "deps": [
+      "FD-21"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-22.md"
+  },
+  {
+    "id": "FD-23",
+    "project": "FD",
+    "number": 23,
+    "title": "Graceful shutdown workera",
+    "topics": [
+      "shutdown",
+      "client",
+      "queues"
+    ],
+    "goal": "Ukonči API a workera bez předčasného potvrzení rozpracované práce.",
+    "steps": [
+      "Na SIGTERM zastav nové příjmy a nové vybírání z fronty.",
+      "Probíhající objednávku dokonči v limitu a až pak potvrď; při vypršení limitu ji ponech obnovitelnou v processing.",
+      "Uzavři běžné i blokující spojení. Otestuj signál při prázdné frontě i během práce."
+    ],
+    "checks": [
+      "Worker po signálu nevyzvedne další objednávku.",
+      "Nedokončená objednávka nezmizí z evidence.",
+      "Proces skončí i při blokujícím čekání a při nedostupném serveru."
+    ],
+    "trap": "ACK nebo LREM v finally může označit za úspěšnou i práci, která skončila chybou.",
+    "question": "Kdy použiješ close() a kdy musí nastoupit destroy()?",
+    "hint": "Konečný timeout BLMOVE zjednoduší odchod ze smyčky. Blokující spojení spravuj zvlášť a vynucené ukončení nepovažuj za potvrzení práce.",
+    "commands": "SIGTERM, BLMOVE timeout, LREM, client.close(), client.destroy()",
+    "mins": 45,
+    "level": "P",
+    "deps": [
+      "FD-22"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-23.md"
+  },
+  {
+    "id": "FD-24",
+    "project": "FD",
+    "number": 24,
+    "title": "Provozní audit a incident rozvozu",
+    "topics": [
+      "cli",
+      "scan",
+      "errors",
+      "geo"
+    ],
+    "goal": "Najdi rozpory mezi detaily, frontami a dostupností řidičů.",
+    "steps": [
+      "Vlož do fronty chybějící orderId, do geo indexu offline řidiče a do pending indexu dokončenou objednávku.",
+      "Přidej klíč se špatným typem a heartbeat bez TTL.",
+      "Použij CLI a vlastní audit k nalezení závad; doplň INFO, SLOWLOG a přehled velikostí klíčů."
+    ],
+    "checks": [
+      "Report obsahuje pět závad, jejich dopad a cílenou opravu.",
+      "Oprava geo indexu neodstraní profil řidiče.",
+      "Audit je dávkovaný a odděluje serverovou latenci od síťového čekání."
+    ],
+    "trap": "SLOWLOG měří provedení příkazů na serveru, ne celou dobu requestu z aplikace.",
+    "question": "Jak rozlišíš špatný model referencí od problémů persistence?",
+    "hint": "Ověř existenci a typ každého detailu odkazovaného frontou. Profil řidiče může správně existovat i při offline stavu.",
+    "commands": "TYPE, TTL, SCAN, LRANGE, HGET, GEOSEARCH, INFO, SLOWLOG GET, MEMORY USAGE",
+    "mins": 60,
+    "level": "P",
+    "deps": [
+      "FD-23"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-24.md"
+  },
+  {
+    "id": "FD-25",
+    "project": "FD",
+    "number": 25,
+    "title": "Session zákazníka a jednorázový token",
+    "topics": [
+      "strings",
+      "ttl",
+      "keys"
+    ],
+    "goal": "Procvič životní cyklus klíče na jiné doméně než heartbeat.",
+    "steps": [
+      "Ulož fd:session:s1 jako String s TTL 30 min a při aktivitě obnov expiraci pomocí GETEX.",
+      "Vytvoř jednorázový token pro vyzvednutí; spotřebuj jej atomicky přes GETDEL.",
+      "Na laboratorních klíčích otestuj SET NX/XX/KEEPTTL, PERSIST, RENAME/RENAMENX, TOUCH a MGET."
+    ],
+    "checks": [
+      "Dva souběžné pokusy o spotřebu tokenu mají právě jednoho vítěze.",
+      "Obyčejný SET a SET KEEPTTL mají v tabulce správně odlišenou expiraci.",
+      "TOUCH neprodlužuje platnost session."
+    ],
+    "trap": "Sliding TTL bez absolutní hranice může udržovat aktivní session neomezeně dlouho.",
+    "question": "Jak bys kombinoval dobu nečinnosti s maximální celkovou životností session?",
+    "hint": "Pro absolutní maximum uchovej createdAt/deadline a nastav nové TTL nejvýše do této hranice. Jednorázovost řeš příkazem, ne GET + DEL.",
+    "commands": "GETEX, GETDEL, SET NX/XX/KEEPTTL, PERSIST, RENAME, RENAMENX, TOUCH, MGET",
+    "mins": 45,
+    "level": "P",
+    "deps": [
+      "FD-24"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-25.md"
+  },
+  {
+    "id": "FD-26",
+    "project": "FD",
+    "number": 26,
+    "title": "Závěrečná mise: objednávka od přijetí po obnovu",
+    "topics": [
+      "capstone",
+      "queues",
+      "geo",
+      "persistence",
+      "client"
+    ],
+    "goal": "Prokaž propojení modelu, front, výpadků a obnovy.",
+    "steps": [
+      "Ze seedu přijmi objednávku, nabídni blízkého online řidiče, přesuň do processing a dokonči.",
+      "Simuluj pád workera před potvrzením a retry téhož dokončení; potom restart Redis s persistencí.",
+      "Spusť audit, odstraň jen stará laboratorní data přes UNLINK a ukonči worker signálem."
+    ],
+    "checks": [
+      "Objednávka neskončí bez reference ani s dvojím započítáním statistik.",
+      "Offline či vzdálený řidič se nepřidělí.",
+      "Obnovený stav, audit i shutdown odpovídají popsaným garancím a limitům."
+    ],
+    "trap": "Přidání persistence samo neopraví neatomický přechod mezi frontou a stavem objednávky.",
+    "question": "Kde v celém toku může nastat retry a jak na každém místě prokážeš správný výsledek?",
+    "hint": "Věnuj 120 minut samostatnému pokusu. Po každé injekci chyby ověř klíče v Redis, nejen HTTP status.",
+    "commands": "Kombinace FD-01 až FD-25",
+    "mins": 120,
+    "level": "P",
+    "deps": [
+      "FD-25"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-26.md"
+  },
+  {
+    "id": "FD-27",
+    "project": "FD",
+    "number": 27,
+    "title": "Streams místo ruční processing fronty",
+    "topics": [
+      "streams",
+      "delivery",
+      "queues"
+    ],
+    "goal": "Porovnej consumer groups s dřívější List implementací.",
+    "steps": [
+      "Vytvoř fd:stream:orders, skupinu dispatch a dva konzumenty.",
+      "Zpracuj nové zprávy přes XREADGROUP a potvrď přes XACK.",
+      "Položku bez ACK prohlédni v XPENDING a převezmi přes XAUTOCLAIM; vyzkoušej řízený trimming."
+    ],
+    "checks": [
+      "NeACKnutá zpráva zůstane pending.",
+      "Převzatá objednávka využije idempotentní completeOrder.",
+      "Rozlišíš historii streamu, pending a potvrzení zpracování."
+    ],
+    "trap": "Ořezání streamu musí respektovat potřeby konzumentů; samotná pending reference nezaručuje zachování payloadu při všech způsobech mazání.",
+    "question": "Jaký problém ručního List řešení ti consumer group řeší a co stále musí řešit aplikace?",
+    "hint": "Stream ID není orderId. Ulož orderId do fields a deduplikuj obchodní účinek podle něj.",
+    "commands": "XADD, XRANGE, XGROUP, XREADGROUP, XACK, XPENDING, XAUTOCLAIM, XTRIM",
+    "mins": 60,
+    "level": "R",
+    "deps": [
+      "FD-07",
+      "FD-12"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-27.md"
+  },
+  {
+    "id": "FD-28",
+    "project": "FD",
+    "number": 28,
+    "title": "Pub/Sub pro živou mapu",
+    "topics": [
+      "pubsub",
+      "delivery"
+    ],
+    "goal": "Posílej notifikace o poloze a ověř důsledky odpojení.",
+    "steps": [
+      "Publikuj fd:driver:location události a sleduj je samostatným subscriberem.",
+      "Odpoj subscriber, publikuj další update a připoj jej znovu.",
+      "Po reconnectu obnov aktuální mapu čtením geo indexu místo očekávání replay všech notifikací."
+    ],
+    "checks": [
+      "Připojený subscriber aktualizace dostává.",
+      "Zmeškaná zpráva se sama nevrátí.",
+      "Aktuální mapa se umí znovu sestavit z uloženého stavu."
+    ],
+    "trap": "Notifikace nejsou náhradou trvalého stavu objednávky.",
+    "question": "Proč je Pub/Sub vhodnější pro průběžnou vizualizaci než pro jedinou frontu účtování?",
+    "hint": "Publisher i subscriber využij přes samostatná spojení. Pro replay a acknowledgements porovnej Streams.",
+    "commands": "PUBLISH, SUBSCRIBE, PSUBSCRIBE",
+    "mins": 35,
+    "level": "R",
+    "deps": [
+      "FD-10",
+      "FD-22"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-28.md"
+  },
+  {
+    "id": "FD-29",
+    "project": "FD",
+    "number": 29,
+    "title": "Search nad menu",
+    "topics": [
+      "search",
+      "json"
+    ],
+    "goal": "Vyhledej jídla podle textu, vlastností a ceny.",
+    "steps": [
+      "Pro indexování připrav jeden JSON dokument na jídlo fd:json:dish:<id>.",
+      "Vytvoř index TEXT name, TAG dietary, NUMERIC priceCents a vyhledej vegetariánská jídla pod 20000.",
+      "Změň cenu, ověř nové výsledky a doplň FT.INFO; volitelně agreguj počet jídel podle restaurace."
+    ],
+    "checks": [
+      "Index pracuje pouze nad zamýšleným prefixem.",
+      "Výsledek odpovídá seedu a dostupným dietary tagům.",
+      "Znáš rozdíl mezi TAG, TEXT a NUMERIC."
+    ],
+    "trap": "Volba schema a cesty k JSON poli rozhoduje o tom, co lze efektivně hledat.",
+    "question": "Proč je někdy jednodušší indexovat každé jídlo zvlášť než celé pole menu?",
+    "hint": "U vícenásobných tagů ověř JSONPath a tvar pole. Zapiš verzi serveru a dialect dotazu.",
+    "commands": "FT.CREATE, FT.SEARCH, FT.INFO, FT.AGGREGATE",
+    "mins": 60,
+    "level": "R",
+    "deps": [
+      "FD-03",
+      "FD-09"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-29.md"
+  },
+  {
+    "id": "FD-30",
+    "project": "FD",
+    "number": 30,
+    "title": "Aktivní zákazníci: bitmap a HLL",
+    "topics": [
+      "bitmap",
+      "hll"
+    ],
+    "goal": "Porovnej přesnou denní aktivitu s přibližným počtem zákazníků.",
+    "steps": [
+      "Zapiš denní aktivitu zákazníků 1,2,2,7,9 do bitmapy a HyperLogLog.",
+      "Zjisti přesnou aktivitu zákazníka 7 a počet aktivních.",
+      "Přidej druhý den a spoj oba dny; navrhni retenci denních klíčů."
+    ],
+    "checks": [
+      "Bitmap membership pro 7 je 1 a první den má přesně 4 aktivní zákazníky.",
+      "Umíš odlišit přibližný HLL count od přesného Set/bitmap count.",
+      "Sloučení dnů nepočítá stejnou identitu dvakrát jako prostý součet denních počtů."
+    ],
+    "trap": "Součet denních unikátních počtů není počet unikátních za celé období.",
+    "question": "Jaké omezení má bitmap při použití velkých náhodných ID?",
+    "hint": "Potřebuješ mapování na rozumně husté offsety; HLL nepotřebuje toto mapování, ale neumí membership.",
+    "commands": "SETBIT, GETBIT, BITCOUNT, BITOP, PFADD, PFCOUNT, PFMERGE",
+    "mins": 40,
+    "level": "R",
+    "deps": [
+      "FD-04",
+      "FD-09"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-30.md"
+  },
+  {
+    "id": "FD-31",
+    "project": "FD",
+    "number": 31,
+    "title": "ACL, autentizace a TLS",
+    "topics": [
+      "security",
+      "client"
+    ],
+    "goal": "Odděl oprávnění aplikace od administrace serveru.",
+    "steps": [
+      "Na jednorázové instanci vytvoř aplikační ACL účet omezený na fd:* a potřebné příkazy; ponech samostatnou admin cestu.",
+      "Připoj aplikaci s username/password a ověř zakázaný přístup k ec:* i zakázaný CONFIG.",
+      "Popiš redis:// versus rediss:// a ověř, že heslo není v logu ani repozitáři. TLS připojení proveď jen s připraveným TLS endpointem."
+    ],
+    "checks": [
+      "Povolené doménové čtení projde, nepovolený příkaz či klíč selže.",
+      "Aplikace zachytí chybné přihlašovací údaje.",
+      "Neprohlašuješ ACL za šifrování spojení."
+    ],
+    "trap": "Pouhá změna URL na rediss:// nezapne TLS na serveru. Přiložený Compose je lokální plaintext lab.",
+    "question": "Proč by běžný runtime účet neměl mít CONFIG, FLUSHALL nebo neomezený přístup ke klíčům?",
+    "hint": "Pro test pracuj jako admin v odděleném spojení a ACL změny dělej jen na vlastní lab instanci. TLS vyžaduje server i důvěryhodný certifikát.",
+    "commands": "ACL SETUSER, ACL GETUSER, ACL WHOAMI, AUTH; redis://, rediss://",
+    "mins": 45,
+    "level": "R",
+    "deps": [
+      "FD-01",
+      "FD-22"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-31.md"
+  },
+  {
+    "id": "FD-32",
+    "project": "FD",
+    "number": 32,
+    "title": "Sharding, replikace a hash tags",
+    "topics": [
+      "cluster",
+      "keys",
+      "persistence"
+    ],
+    "goal": "Rozpoznej, které návrhy závisejí na jednom Redis nodu.",
+    "steps": [
+      "Navrhni tagování klíčů jedné objednávky fd:{o1001}:detail a fd:{o1001}:dedupe.",
+      "Analyzuj, proč společná globální queue a detail každé objednávky nemusejí být ve stejném slotu.",
+      "Porovnej jeden primary s replikou, Sentinel a Redis Cluster; uveď dopad failoveru a opožděné replikace."
+    ],
+    "checks": [
+      "Víš, které multi-key operace potřebují společný slot.",
+      "Neslibuješ synchronní replikaci ani nulovou ztrátu jen díky existenci repliky.",
+      "Rozlišuješ škálování kapacity přes shardy a kopii stejných dat na replice."
+    ],
+    "trap": "Hash tag pro všechny objednávky by obešel CROSSSLOT, ale vytvořil by jeden přetížený shard.",
+    "question": "Proč globální atomické dokončení objednávky a všech globálních statistik komplikuje sharding?",
+    "hint": "Tato karta je návrhová; přiložený standalone server nedokáže věrně simulovat cluster failover. Praktický cluster je volitelné rozšíření.",
+    "commands": "Hash slots, hash tags, MOVED, CROSSSLOT, replication, Sentinel",
+    "mins": 45,
+    "level": "R",
+    "deps": [
+      "FD-12",
+      "FD-20"
+    ],
+    "path": "02_Food_Delivery/ukoly/FD-32.md"
+  }
+]

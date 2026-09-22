@@ -1,0 +1,84 @@
+[
+  {
+    "id": "r1",
+    "name": "Brno Kitchen",
+    "longitude": 16.6068,
+    "latitude": 49.1951,
+    "dishes": [
+      {
+        "id": "dish1",
+        "name": "Margherita",
+        "priceCents": 18900,
+        "vegetarian": true,
+        "spicy": false,
+        "available": true,
+        "options": {
+          "extraCheese": true
+        }
+      },
+      {
+        "id": "dish2",
+        "name": "Chilli Chicken",
+        "priceCents": 22900,
+        "vegetarian": false,
+        "spicy": true,
+        "available": true,
+        "options": {
+          "rice": true
+        }
+      },
+      {
+        "id": "dish3",
+        "name": "Veggie Curry",
+        "priceCents": 17900,
+        "vegetarian": true,
+        "spicy": true,
+        "available": false,
+        "options": {
+          "rice": true
+        }
+      }
+    ]
+  },
+  {
+    "id": "r2",
+    "name": "Park Bistro",
+    "longitude": 16.615,
+    "latitude": 49.2,
+    "dishes": [
+      {
+        "id": "dish4",
+        "name": "Garden Salad",
+        "priceCents": 14900,
+        "vegetarian": true,
+        "spicy": false,
+        "available": true,
+        "options": {
+          "dressing": "yogurt"
+        }
+      },
+      {
+        "id": "dish5",
+        "name": "Beef Burger",
+        "priceCents": 24900,
+        "vegetarian": false,
+        "spicy": false,
+        "available": true,
+        "options": {
+          "fries": true
+        }
+      },
+      {
+        "id": "dish6",
+        "name": "Hot Tofu",
+        "priceCents": 19900,
+        "vegetarian": true,
+        "spicy": true,
+        "available": true,
+        "options": {
+          "rice": true
+        }
+      }
+    ]
+  }
+]

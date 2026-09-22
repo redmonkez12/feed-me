@@ -1,0 +1,45 @@
+[
+  {
+    "id": "o1001",
+    "restaurantId": "r1",
+    "customerId": "u1",
+    "status": "created",
+    "items": [
+      {
+        "dishId": "dish1",
+        "quantity": 2
+      }
+    ],
+    "dueInSeconds": 120
+  },
+  {
+    "id": "o1002",
+    "restaurantId": "r1",
+    "customerId": "u2",
+    "status": "created",
+    "items": [
+      {
+        "dishId": "dish2",
+        "quantity": 1
+      }
+    ],
+    "dueInSeconds": 60
+  },
+  {
+    "id": "o1003",
+    "restaurantId": "r2",
+    "customerId": "u3",
+    "status": "created",
+    "items": [
+      {
+        "dishId": "dish4",
+        "quantity": 1
+      },
+      {
+        "dishId": "dish6",
+        "quantity": 1
+      }
+    ],
+    "dueInSeconds": 180
+  }
+]

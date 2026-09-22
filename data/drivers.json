@@ -1,0 +1,42 @@
+[
+  {
+    "id": "d1",
+    "name": "Adam",
+    "longitude": 16.6075,
+    "latitude": 49.1955,
+    "online": true,
+    "busy": false
+  },
+  {
+    "id": "d2",
+    "name": "Bara",
+    "longitude": 16.615,
+    "latitude": 49.2,
+    "online": true,
+    "busy": false
+  },
+  {
+    "id": "d3",
+    "name": "Cyril",
+    "longitude": 14.4378,
+    "latitude": 50.0755,
+    "online": true,
+    "busy": false
+  },
+  {
+    "id": "d4",
+    "name": "Dana",
+    "longitude": 16.607,
+    "latitude": 49.196,
+    "online": false,
+    "busy": false
+  },
+  {
+    "id": "d5",
+    "name": "Emil",
+    "longitude": 16.608,
+    "latitude": 49.195,
+    "online": true,
+    "busy": true
+  }
+]

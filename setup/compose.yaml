@@ -1,0 +1,31 @@
+name: redis-associate-labs
+services:
+  redis-ec:
+    image: redis:8
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - ./ecommerce.conf:/usr/local/etc/redis/redis.conf:ro
+      - ec-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  redis-fd:
+    image: redis:8
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - ./food.conf:/usr/local/etc/redis/redis.conf:ro
+      - fd-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  ec-data:
+  fd-data:

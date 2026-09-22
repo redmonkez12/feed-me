@@ -1,0 +1,115 @@
+[
+  {
+    "id": "p101",
+    "name": "Mechanical Keyboard",
+    "category": "electronics",
+    "priceCents": 249900,
+    "stock": 10,
+    "tags": [
+      "sale",
+      "office"
+    ],
+    "attributes": {
+      "color": "black",
+      "wireless": false
+    }
+  },
+  {
+    "id": "p102",
+    "name": "4K Monitor",
+    "category": "electronics",
+    "priceCents": 799900,
+    "stock": 4,
+    "tags": [
+      "office"
+    ],
+    "attributes": {
+      "color": "black",
+      "sizeInches": 27
+    }
+  },
+  {
+    "id": "p103",
+    "name": "Studio Headphones",
+    "category": "audio",
+    "priceCents": 349900,
+    "stock": 0,
+    "tags": [
+      "sale",
+      "music"
+    ],
+    "attributes": {
+      "color": "silver",
+      "wireless": false
+    }
+  },
+  {
+    "id": "p104",
+    "name": "USB Cable",
+    "category": "accessories",
+    "priceCents": 19900,
+    "stock": 100,
+    "tags": [
+      "sale",
+      "office"
+    ],
+    "attributes": {
+      "lengthM": 2
+    }
+  },
+  {
+    "id": "p105",
+    "name": "Laptop Stand",
+    "category": "accessories",
+    "priceCents": 89900,
+    "stock": 15,
+    "tags": [
+      "office"
+    ],
+    "attributes": {
+      "material": "aluminium"
+    }
+  },
+  {
+    "id": "p106",
+    "name": "Desk Lamp",
+    "category": "home",
+    "priceCents": 129900,
+    "stock": 9,
+    "tags": [
+      "office"
+    ],
+    "attributes": {
+      "color": "white"
+    }
+  },
+  {
+    "id": "p107",
+    "name": "Wireless Mouse",
+    "category": "electronics",
+    "priceCents": 159900,
+    "stock": 25,
+    "tags": [
+      "sale",
+      "office"
+    ],
+    "attributes": {
+      "color": "black",
+      "wireless": true
+    }
+  },
+  {
+    "id": "p108",
+    "name": "In-ear Earphones",
+    "category": "audio",
+    "priceCents": 59900,
+    "stock": 40,
+    "tags": [
+      "music"
+    ],
+    "attributes": {
+      "color": "white",
+      "wireless": false
+    }
+  }
+]

@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*.local
+*.log
+.DS_Store
+.idea/
+.vscode/
+.drizzle/
+02_Food_Delivery
+CHYTAKY.md
+ZDROJE.md
+PLAN_STUDIA.md
+POKRYTI_SYLABU.md
+EVIDENCE_TEMPLATE.md
+CHECKLIST.md
