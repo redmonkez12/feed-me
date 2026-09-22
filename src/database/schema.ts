@@ -8,17 +8,10 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { ORDER_STATUSES } from '../orders/orders.constants';
 
 export const driverStatus = pgEnum('driver_status', ['offline', 'available', 'busy']);
-export const orderStatus = pgEnum('order_status', [
-  'created',
-  'accepted',
-  'preparing',
-  'ready',
-  'delivering',
-  'delivered',
-  'cancelled',
-]);
+export const orderStatus = pgEnum('order_status', ORDER_STATUSES);
 
 export const customers = pgTable(
   'customers',

@@ -14,6 +14,7 @@ cp .env.example .env
 bun install
 bun run infra:up
 bun run db:migrate
+bun run db:seed
 bun run start:dev
 ```
 
@@ -51,9 +52,24 @@ bun run test
 bun run build
 bun run db:generate   # after changing src/database/schema.ts
 bun run db:migrate
+bun run db:seed       # load data/*.json into PostgreSQL
 bun run db:studio
 bun run infra:down
 ```
+
+### Database Seed
+
+`bun run db:seed` loads the food-delivery fixtures from `data/menus.json`,
+`data/drivers.json`, and `data/orders.json`. Fixture identifiers such as `r1`,
+`d1`, and `o1001` are converted to stable UUIDs because the PostgreSQL schema
+uses UUID primary keys. The command is idempotent and updates its existing rows
+instead of creating duplicates.
+
+The order fixtures do not include customer profiles or delivery addresses, so
+the seed creates clearly marked test values for those required columns. Order
+totals and item prices are derived from the menu fixtures. Coordinates, online
+membership, and delivery deadlines are intentionally left for the Redis model;
+the relational schema has no corresponding columns.
 
 The initial migration creates the core `customers`, `restaurants`, `menu_items`,
 `drivers`, `orders`, and `order_items` tables. The `menus`, `orders`, and

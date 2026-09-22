@@ -29,6 +29,7 @@
     "redis:logs": "docker compose logs -f redis-fd",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:seed": "bun src/database/seed.ts",
     "db:studio": "drizzle-kit studio",
     "db:check": "drizzle-kit check"
   },
