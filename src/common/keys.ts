@@ -4,3 +4,5 @@ export const queueKey = () => `queue:orders`;
 export const driverOnlineKey = () => `drivers:online`;
 export const geoDriverKey = () => `geo:drivers`;
 export const rankDishesKey = () => `rank:dishes`;
+export const menuKey = (restaurantId: string) => `menu:${restaurantId}`;
+export const dishKey = (dishId: string) => `dish:${dishId}`;
