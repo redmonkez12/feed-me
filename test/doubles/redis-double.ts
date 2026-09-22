@@ -15,14 +15,25 @@ export function createRedisDouble() {
   const lists = new Map<string, string[]>();
   const sets = new Map<string, Set<string>>();
   const sortedSets = new Map<string, Map<string, number>>();
+  const strings = new Map<string, { value: string; expiresAt: number }>();
   const positions = new Map<string, GeoPosition>();
 
-  const keyExists = (key: string): boolean =>
-    hashes.has(key) ||
-    lists.has(key) ||
-    sets.has(key) ||
-    sortedSets.has(key) ||
-    [...positions.keys()].some((positionKey) => positionKey.startsWith(`${key}:`));
+  const keyExists = (key: string): boolean => {
+    const string = strings.get(key);
+
+    if (string !== undefined && string.expiresAt <= Date.now()) {
+      strings.delete(key);
+    }
+
+    return (
+      strings.has(key) ||
+      hashes.has(key) ||
+      lists.has(key) ||
+      sets.has(key) ||
+      sortedSets.has(key) ||
+      [...positions.keys()].some((positionKey) => positionKey.startsWith(`${key}:`))
+    );
+  };
 
   const client = {
     hSet: vi.fn((key: string, fields: Record<string, string | number>) => {
@@ -85,6 +96,50 @@ export function createRedisDouble() {
       return Promise.resolve(nextValue);
     }),
     exists: vi.fn((key: string) => Promise.resolve(keyExists(key) ? 1 : 0)),
+    multi: vi.fn(() => {
+      const operations: Array<() => string | number> = [];
+      const transaction = {
+        set: vi.fn(
+          (key: string, value: string, options: { expiration: { type: 'EX'; value: number } }) => {
+            operations.push(() => {
+              strings.set(key, {
+                value,
+                expiresAt: Date.now() + options.expiration.value * 1_000,
+              });
+              return 'OK';
+            });
+            return transaction;
+          },
+        ),
+        zAdd: vi.fn(
+          (
+            key: string,
+            member: { score: number; value: string },
+            options?: { comparison?: 'GT' },
+          ) => {
+            operations.push(() => {
+              const sortedSet = sortedSets.get(key) ?? new Map<string, number>();
+              const oldScore = sortedSet.get(member.value);
+
+              if (
+                oldScore === undefined ||
+                options?.comparison !== 'GT' ||
+                member.score > oldScore
+              ) {
+                sortedSet.set(member.value, member.score);
+              }
+
+              sortedSets.set(key, sortedSet);
+              return oldScore === undefined ? 1 : 0;
+            });
+            return transaction;
+          },
+        ),
+        exec: vi.fn(() => Promise.resolve(operations.map((operation) => operation()))),
+      };
+
+      return transaction;
+    }),
     sAdd: vi.fn((key: string, member: string) => {
       const members = sets.get(key) ?? new Set<string>();
       const added = !members.has(member);
@@ -102,6 +157,10 @@ export function createRedisDouble() {
 
       return Promise.resolve(removed ? 1 : 0);
     }),
+    sCard: vi.fn((key: string) => Promise.resolve(sets.get(key)?.size ?? 0)),
+    sIsMember: vi.fn((key: string, member: string) =>
+      Promise.resolve(sets.get(key)?.has(member) ? 1 : 0),
+    ),
     rPush: vi.fn((key: string, value: string) => {
       const list = lists.get(key) ?? [];
       list.push(value);
