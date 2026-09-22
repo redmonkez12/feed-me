@@ -1,12 +1,13 @@
 # Food Delivery API
 
-Spustitelný NestJS skeleton pro úkoly Food Delivery. Obsahuje PostgreSQL 18,
-Drizzle ORM a migrace, Redis `redis-fd`, klienta `redis` (node-redis), Zod validaci
-a Adminer. Studijní zadání zůstávají ve složce `02_Food_Delivery/`.
+A runnable NestJS skeleton for the Food Delivery exercises. It includes PostgreSQL 18,
+Drizzle ORM with migrations, the `redis-fd` Redis instance, the `redis` client
+(node-redis), Zod validation, and Adminer. The study exercises remain in the
+`02_Food_Delivery/` directory.
 
-## Rychlý start
+## Quick Start
 
-Požadavky: Bun 1.4.2+ a Docker s Compose.
+Requirements: Bun 1.4.2+ and Docker with Compose.
 
 ```bash
 cp .env.example .env
@@ -16,92 +17,122 @@ bun run db:migrate
 bun run start:dev
 ```
 
-Ověření aplikace:
+Verify the application:
 
 ```bash
 curl http://localhost:3000/api/health
 ```
 
-Očekávaná odpověď:
+Expected response:
 
 ```json
 {"status":"ok","services":{"postgres":"up","redis":"up"}}
 ```
 
-## Lokální služby
+## Local Services
 
-| Služba | Adresa | Přístup |
+| Service | Address | Access |
 |---|---|---|
-| API | `http://localhost:3000/api` | health endpoint je `/health` |
-| PostgreSQL 18 | `localhost:5432` | DB/user/password: `food_delivery` |
-| Redis 8 (`redis-fd`) | `redis://localhost:6380` | bez hesla, pouze localhost |
-| Adminer | `http://localhost:8080` | server `postgres`, PostgreSQL credentials výše |
+| API | `http://localhost:3000/api` | The health endpoint is `/health` |
+| PostgreSQL 18 | `localhost:5432` | Database/user/password: `food_delivery` |
+| Redis 8 (`redis-fd`) | `redis://localhost:6380` | No password, localhost only |
+| Adminer | `http://localhost:8080` | Server: `postgres`; use the PostgreSQL credentials above |
 
-Jediný root Compose spouští PostgreSQL, Redis i Adminer. Služba `redis-fd`
-používá přímo konfiguraci `setup/food.conf`: AOF `everysec`, limit 128 MB a
-politiku `noeviction`.
+A single root-level Compose configuration starts PostgreSQL, Redis, and Adminer.
+The `redis-fd` service uses `setup/food.conf` directly, with AOF set to
+`everysec`, a 128 MB limit, and the `noeviction` policy.
 
-## Vývoj
+## Development
 
 ```bash
 bun run typecheck
 bun run lint
 bun run test
 bun run build
-bun run db:generate   # po změně src/database/schema.ts
+bun run db:generate   # after changing src/database/schema.ts
 bun run db:migrate
 bun run db:studio
 bun run infra:down
 ```
 
-První migrace už vytváří základní tabulky `customers`, `restaurants`,
-`menu_items`, `drivers`, `orders` a `order_items`. Nest moduly `menus`, `orders`
-a `drivers` mají laboratorní `POST /api/<service>/redis-probe` endpointy. Každý
-ověří zápis a čtení přes node-redis; klient automaticky přidává prefix `fd:`.
+The initial migration creates the core `customers`, `restaurants`, `menu_items`,
+`drivers`, `orders`, and `order_items` tables. The `menus`, `orders`, and
+`drivers` Nest modules provide experimental `POST /api/<service>/redis-probe`
+endpoints. Each endpoint verifies writing and reading through node-redis; the
+client automatically adds the `fd:` prefix.
 
-Konfigurace se načítá z `.env` a při startu validuje přes Zod. Připojení jsou
-zapouzdřená v globálních `DatabaseModule` a `RedisModule`; obě korektně zavírají
-spojení při ukončení procesu. Redis má AOF `everysec` a politiku `noeviction`,
-což odpovídá stavové vrstvě rozvozu.
+Configuration is loaded from `.env` and validated with Zod at startup.
+Connections are encapsulated in the global `DatabaseModule` and `RedisModule`;
+both close their connections cleanly when the process shuts down. Redis uses
+AOF `everysec` and the `noeviction` policy, which are appropriate for the
+delivery state layer.
 
 ---
 
-# Redis Associate Developer — dva praktické projekty
+# Redis Associate Developer — Two Practical Projects
 
-**64 samostatných úkolů: 32 pro E-Commerce Product Catalog a 32 pro Food Delivery Platform.** Každý projekt má 26 karet hlavního postupu a 6 rozšíření. Celkem tedy 52 hlavních karet a 12 rozšiřujících.
+**64 self-contained exercises: 32 for the E-Commerce Product Catalog and 32 for
+the Food Delivery Platform.** Each project contains 26 core learning cards and
+6 extensions, for a total of 52 core cards and 12 extension cards.
 
-Zadání navazují na dva scénáře z přiloženého screenshotu. Každá karta obsahuje cíl, implementační kroky, kontrolovatelné podmínky splnění, chybový scénář, otázku na porozumění a seznam příkazů. Nápovědy jsou zvlášť, aby neprozradily postup před pokusem.
+The exercises build on the two scenarios shown in the provided screenshot.
+Each card includes an objective, implementation steps, verifiable acceptance
+criteria, a failure scenario, a comprehension question, and a list of commands.
+Hints are kept separate so they do not reveal the solution before you attempt
+the exercise.
 
-## Začni zde
+## Start Here
 
-1. Přečti [mapu pokrytí](POKRYTI_SYLABU.md): všechna témata viditelného výřezu jsou zahrnuta; úplný aktuální exam guide se nepodařilo nezávisle ověřit.
-2. Spusť [lokální setup](setup/README.md) a vyber si jazykový obal. Doporučený klient tohoto balíku je **node-redis v5**; TypeScript/Fastify můžeš použít podle zvyku.
-3. Projdi [E-commerce úkoly](01_Ecommerce/README.md), potom [Food Delivery úkoly](02_Food_Delivery/README.md). U každé karty si můžeš vybrat service funkci, CLI lab nebo minimální HTTP endpoint podle zadání.
-4. Použij [checklist](CHECKLIST.md) a [šablonu evidence](EVIDENCE_TEMPLATE.md). Při opakování známého tématu stačí skutečně provést acceptance scénáře a vysvětlit výsledek.
-5. Závěrečné mise EC-26 a FD-26 proveď bez nápověd. Rozšíření přidej podle kompletního sylabu.
+1. Read the [coverage map](POKRYTI_SYLABU.md). It covers every topic visible in
+   the supplied excerpt, but the complete current exam guide could not be
+   independently verified.
+2. Start the [local environment](setup/README.md) and choose a language wrapper.
+   The recommended client for this package is **node-redis v5**; use
+   TypeScript/Fastify if that is your preferred stack.
+3. Work through the [E-Commerce exercises](01_Ecommerce/README.md), followed by
+   the [Food Delivery exercises](02_Food_Delivery/README.md). For each card, you
+   can implement a service function, a CLI lab, or a minimal HTTP endpoint, as
+   specified by the exercise.
+4. Use the [checklist](CHECKLIST.md) and the
+   [evidence template](EVIDENCE_TEMPLATE.md). When revisiting a familiar topic,
+   it is enough to run the acceptance scenarios and explain the result.
+5. Complete the final EC-26 and FD-26 missions without hints. Add the extensions
+   based on the complete syllabus.
 
-## Obsah ZIPu
+## ZIP Contents
 
-| Cesta                                                      | Obsah                                                |
+| Path                                                       | Contents                                             |
 | ---------------------------------------------------------- | ---------------------------------------------------- |
-| `01_Ecommerce/ukoly/EC-01.md` až `EC-32.md`                | Samostatná zadání katalogu                           |
-| `02_Food_Delivery/ukoly/FD-01.md` až `FD-32.md`            | Samostatná zadání rozvozu                            |
-| `01_Ecommerce/NAPOVEDY.md`, `02_Food_Delivery/NAPOVEDY.md` | Oddělené nápovědy ke každé kartě                     |
-| `POKRYTI_SYLABU.md`                                        | Mapování témat, podklad S/D/R a kontrola mezer       |
-| `CHECKLIST.md`                                             | Odškrtávací seznam s odkazy                          |
-| `PLAN_STUDIA.md`                                           | Pořadí, milníky a režim při nedostatku času          |
-| `data/`                                                    | Produkty, menu, řidiči a objednávky v JSON           |
-| `setup/`                                                   | Dva lokální Redis servery a oddělený persistence lab |
-| `CHYTAKY.md`                                               | Krátký checklist nejčastějších omylů                 |
-| `EVIDENCE_TEMPLATE.md`                                     | Šablona vlastního záznamu výsledků                   |
-| `ZDROJE.md`                                                | Oficiální dokumentace a hranice ověření              |
+| `01_Ecommerce/ukoly/EC-01.md` through `EC-32.md`           | Self-contained catalog exercises                     |
+| `02_Food_Delivery/ukoly/FD-01.md` through `FD-32.md`       | Self-contained delivery exercises                    |
+| `01_Ecommerce/NAPOVEDY.md`, `02_Food_Delivery/NAPOVEDY.md` | Separate hints for each card                         |
+| `POKRYTI_SYLABU.md`                                        | Topic mapping, S/D/R references, and gap analysis    |
+| `CHECKLIST.md`                                             | Linked checklist                                     |
+| `PLAN_STUDIA.md`                                           | Sequence, milestones, and time-constrained study plan |
+| `data/`                                                    | Products, menus, drivers, and orders in JSON         |
+| `setup/`                                                   | Two local Redis servers and a separate persistence lab |
+| `CHYTAKY.md`                                               | Short checklist of common pitfalls                   |
+| `EVIDENCE_TEMPLATE.md`                                     | Template for recording your results                  |
+| `ZDROJE.md`                                                | Official documentation and verification scope        |
 
-## Čas a výsledek
+## Time and Outcome
 
-Součet autorských odhadů hlavních karet je **43.0 hodin** čistého řešení; podle předchozí praxe a ladění se může výrazně lišit. Rozšíření představují dalších **9.7 hodin**. Nejde o předpověď času do získání certifikátu.
+The author's estimates for the core cards total **43.0 hours** of focused work;
+the actual time may vary considerably depending on prior experience and
+debugging. The extensions add another **9.7 hours**. These figures are not a
+prediction of how long it will take to earn the certification.
 
-Výsledkem mají být dvě malé backendové aplikace a reprodukovatelné důkazy o chování Redis při souběhu, chybách a restartu. ZIP obsahuje **zadání a vstupní podklady**, nikoliv už hotové řešení těchto aplikací.
+The intended outcome is two small backend applications and reproducible
+evidence of Redis behavior under concurrency, failures, and restarts. The ZIP
+contains **exercise specifications and starter materials**, not completed
+implementations of these applications.
 
-## Co je a není ověřeno
+## Verification Scope
 
-Balík obsahuje všechna témata viditelná na dodaném screenshotu plus doplňující znalosti a oddělená rozšíření. Nelze z výřezu potvrdit úplnost všech domén certifikátu. Proto je součástí konkrétní kontrola proti celému exam guide. Technické principy byly porovnány s dostupnou oficiální dokumentací; struktura ZIPu, odkazy, ID a fixtures byly zkontrolovány. Přiložený Compose ani budoucí aplikace nebyly v této relaci spuštěny.
+The package covers every topic visible in the supplied screenshot, along with
+supporting knowledge and separate extensions. The excerpt alone cannot confirm
+complete coverage of every certification domain, so the package includes a
+specific review against the full exam guide. The technical principles were
+compared with the available official documentation, and the ZIP structure,
+links, IDs, and fixtures were checked. The included Compose environment and the
+applications to be built were not run during that review session.
