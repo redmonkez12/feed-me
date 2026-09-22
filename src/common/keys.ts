@@ -6,3 +6,4 @@ export const geoDriverKey = () => `geo:drivers`;
 export const rankDishesKey = () => `rank:dishes`;
 export const menuKey = (restaurantId: string) => `menu:${restaurantId}`;
 export const dishKey = (dishId: string) => `dish:${dishId}`;
+export const driverHeartbeatKey = (id: string) => `driver:${id}:heartbeat`;
